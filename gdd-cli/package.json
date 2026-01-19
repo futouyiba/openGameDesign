@@ -1,0 +1,34 @@
+{
+  "name": "gdd-cli",
+  "version": "0.1.0",
+  "description": "AI-driven game design document writing tool",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "gdd": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "tsx src/test.ts",
+    "test:mail": "tsx src/test-mail.ts",
+    "test:review": "tsx src/test-review.ts",
+    "test:context": "tsx src/test-context.ts",
+    "preview": "tsx src/index.ts preview"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "glob": "^13.0.0",
+    "inquirer": "^9.2.0",
+    "yaml": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}

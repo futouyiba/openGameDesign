@@ -1,0 +1,28 @@
+[
+  {
+    "type": "opinion",
+    "priority": "normal",
+    "content": "请在战斗系统中强调技能组合和连招机制",
+    "id": "1768839007576",
+    "timestamp": "2026-01-19T16:10:07.576Z",
+    "processed": true
+  },
+  {
+    "type": "comment",
+    "priority": "normal",
+    "content": "修改建议",
+    "comments": [
+      {
+        "range": {
+          "file": "核心玩法",
+          "start": 1,
+          "end": 10
+        },
+        "content": "核心玩法循环需要更详细的描述，特别是玩家的短期目标和长期目标"
+      }
+    ],
+    "id": "1768839007577",
+    "timestamp": "2026-01-19T16:10:07.577Z",
+    "processed": true
+  }
+]

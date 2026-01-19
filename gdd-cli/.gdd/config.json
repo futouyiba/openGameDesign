@@ -1,0 +1,12 @@
+{
+  "phase": "writing",
+  "interviewSummary": {
+    "understanding": "一款2D Roguelike地牢探索游戏",
+    "keyDecisions": {
+      "游戏类型": "Roguelike",
+      "视角": "俯视2D"
+    },
+    "writingDirection": "重点关注核心玩法"
+  },
+  "currentDocument": "E:\\claudeCode\\gdd-cli\\game-design-document.md"
+}
