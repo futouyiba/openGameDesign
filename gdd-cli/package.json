@@ -1,11 +1,31 @@
 {
-  "name": "gdd-cli",
+  "name": "@gdd/cli",
   "version": "0.1.0",
   "description": "AI-driven game design document writing tool",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "gdd": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "ARCHITECTURE.md",
+    "FEATURES.md"
+  ],
+  "keywords": [
+    "game-design",
+    "documentation",
+    "ai",
+    "claude",
+    "gdd",
+    "game-development"
+  ],
+  "author": "GDD Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/gdd-cli"
   },
   "scripts": {
     "build": "tsc",
