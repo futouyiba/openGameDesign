@@ -22,6 +22,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Debug/Temporary files
+errorImages/
+
 # Environment
 .env
 .env.local

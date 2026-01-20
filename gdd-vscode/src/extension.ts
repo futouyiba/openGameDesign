@@ -31,6 +31,17 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
+        const session = new Session(workspaceRoot);
+        await session.init();
+        const state = session.getState();
+
+        // 如果已经在访谈阶段且有未完成的访谈，直接打开访谈面板
+        if (state.phase === 'interview') {
+            progressProvider.updatePhase('interview', 'in_progress');
+            InterviewPanel.render(context.extensionUri);
+            return;
+        }
+
         // 选择输出目录
         const outputDir = await vscode.window.showInputBox({
             prompt: '输入文档输出目录（相对于工作区根目录）',
@@ -41,9 +52,6 @@ export function activate(context: vscode.ExtensionContext) {
         if (!outputDir) return;
 
         // 保存配置
-        const session = new Session(workspaceRoot);
-        await session.init();
-        const state = session.getState();
         state.outputDir = outputDir;
         await session.saveState();
 

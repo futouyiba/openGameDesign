@@ -2,16 +2,21 @@ import { Session } from '../core/session.js';
 import { AIClient } from '../utils/ai.js';
 import { InterviewSummary } from '../core/types.js';
 import { parseJSON } from '../utils/json.js';
+import { UnderwaterDocManager } from '../storage/underwater.js';
 import inquirer from 'inquirer';
+import { join } from 'path';
 
 export class InterviewerAgent {
   private session: Session;
   private ai: AIClient;
   private conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
+  private underwater: UnderwaterDocManager;
 
   constructor(session: Session, ai: AIClient) {
     this.session = session;
     this.ai = ai;
+    const docPath = join(process.cwd(), 'game-design-document.md');
+    this.underwater = new UnderwaterDocManager(docPath);
   }
 
   async start() {
@@ -51,6 +56,7 @@ export class InterviewerAgent {
       }
 
       await this.generateSummary();
+      await this.extractConversationInsights();
     } catch (error) {
       if ((error as any).code === 'ERR_USE_AFTER_CLOSE') {
         console.log('\nInterview interrupted.');
@@ -81,5 +87,26 @@ export class InterviewerAgent {
     console.log(`\n关键决策:`);
     Object.entries(summary.keyDecisions).forEach(([k, v]) => console.log(`  - ${k}: ${v}`));
     console.log(`\n写作方向: ${summary.writingDirection}\n`);
+  }
+
+  private async extractConversationInsights() {
+    const systemPrompt = `分析访谈对话，提取关键洞察。输出JSON：
+{
+  "context": ["背景/约束"],
+  "openQuestions": ["待解决问题"]
+}`;
+
+    const userPrompt = `对话历史：
+${this.conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n\n')}
+
+提取洞察。`;
+
+    const response = await this.ai.chat([{ role: 'user', content: userPrompt }], systemPrompt);
+    const data = parseJSON(response);
+
+    await this.underwater.load();
+    data.context?.forEach((c: string) => this.underwater.addContext(c));
+    data.openQuestions?.forEach((q: string) => this.underwater.addOpenQuestion(q));
+    await this.underwater.save();
   }
 }

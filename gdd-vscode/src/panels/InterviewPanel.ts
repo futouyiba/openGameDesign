@@ -158,21 +158,20 @@ export class InterviewPanel {
     public static render(extensionUri: vscode.Uri) {
         if (InterviewPanel.currentPanel) {
             InterviewPanel.currentPanel._panel.reveal(vscode.ViewColumn.One);
-        } else {
-            const panel = vscode.window.createWebviewPanel(
-                'gddInterview',
-                'GDD 访谈',
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true
-                }
-            );
-
-            InterviewPanel.currentPanel = new InterviewPanel(panel, extensionUri);
-
-            // 初始化
-            panel.webview.postMessage({ command: 'init' });
+            return;
         }
+
+        const panel = vscode.window.createWebviewPanel(
+            'gddInterview',
+            'GDD 访谈',
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true
+            }
+        );
+
+        InterviewPanel.currentPanel = new InterviewPanel(panel, extensionUri);
     }
 
     public dispose() {
@@ -282,12 +281,12 @@ export class InterviewPanel {
 
     <div class="input-area">
         <div class="input-container">
-            <button class="mic-button" id="micButton" onclick="toggleRecording()" title="语音输入 (Whisper)">🎤</button>
+            <button class="mic-button" id="micButton" title="语音输入 (Whisper)">🎤</button>
             <textarea id="answer" placeholder="输入你的回答...&#10;支持多行输入，Shift+Enter换行，Enter发送"></textarea>
         </div>
         <div style="margin-top: 10px;">
-            <button onclick="sendAnswer()">发送</button>
-            <button onclick="finishInterview()">完成访谈</button>
+            <button id="sendButton">发送</button>
+            <button id="finishButton">完成访谈</button>
         </div>
     </div>
 
@@ -389,6 +388,10 @@ export class InterviewPanel {
                 sendAnswer();
             }
         });
+
+        document.getElementById('sendButton').addEventListener('click', sendAnswer);
+        document.getElementById('finishButton').addEventListener('click', finishInterview);
+        document.getElementById('micButton').addEventListener('click', toggleRecording);
 
         // 初始化
         vscode.postMessage({ command: 'init' });

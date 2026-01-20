@@ -2,6 +2,7 @@ import { Session } from '../core/session.js';
 import { AIClient } from '../utils/ai.js';
 import { WebSearchClient } from '../utils/search.js';
 import { ReferenceManager } from '../storage/references.js';
+import { UnderwaterDocManager } from '../storage/underwater.js';
 import { writeFile, readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
@@ -16,6 +17,7 @@ export class WriterAgent {
   private ai: AIClient;
   private search: WebSearchClient;
   private references: ReferenceManager;
+  private underwater: UnderwaterDocManager;
   private outputPath: string;
   private sections: Section[] = [];
   private conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
@@ -26,6 +28,7 @@ export class WriterAgent {
     this.search = new WebSearchClient();
     this.references = new ReferenceManager(process.cwd());
     this.outputPath = join(process.cwd(), 'game-design-document.md');
+    this.underwater = new UnderwaterDocManager(this.outputPath);
   }
 
   async start() {
@@ -38,6 +41,10 @@ export class WriterAgent {
     }
 
     await this.references.init();
+    await this.underwater.load();
+
+    // Extract context from interview
+    this.extractInterviewContext(state.interviewSummary!);
 
     // 生成文档大纲
     await this.generateOutline();
@@ -56,7 +63,12 @@ export class WriterAgent {
       await this.saveDocument();
     }
 
-    console.log(`\n✓ 文档撰写完成: ${this.outputPath}\n`);
+    // Generate underwater doc
+    await this.generateUnderwaterDoc();
+    await this.underwater.save();
+
+    console.log(`\n✓ 文档撰写完成: ${this.outputPath}`);
+    console.log(`✓ 水下文档已生成: ${this.outputPath.replace(/\.md$/, '.underwater.md')}\n`);
   }
 
   private async generateOutline() {
@@ -234,5 +246,43 @@ ${this.sections[sectionIndex].content}
       console.log('  ⚠ 搜索失败，继续写作');
       return '';
     }
+  }
+
+  private extractInterviewContext(summary: any) {
+    // Extract key decisions as context
+    Object.entries(summary.keyDecisions).forEach(([key, value]) => {
+      this.underwater.addDecision(key, value as string);
+    });
+  }
+
+  private async generateUnderwaterDoc() {
+    const state = this.session.getState();
+    const systemPrompt = `你是游戏策划专家。分析访谈对话和文档内容，提取水下文档信息。
+
+输出JSON格式：
+{
+  "context": ["背景信息1", "约束条件2"],
+  "alternatives": [{"option": "方案A", "rejectionReason": "原因"}],
+  "tradeoffs": ["权衡1"],
+  "risks": ["风险1"],
+  "openQuestions": ["待解决问题1"]
+}`;
+
+    const userPrompt = `访谈总结：
+${JSON.stringify(state.interviewSummary, null, 2)}
+
+对话历史：
+${this.conversationHistory.slice(0, 10).map(m => `${m.role}: ${m.content.substring(0, 200)}`).join('\n')}
+
+提取水下文档信息。`;
+
+    const response = await this.ai.chat([{ role: 'user', content: userPrompt }], systemPrompt);
+    const data = JSON.parse(response.replace(/```json\n?|\n?```/g, ''));
+
+    data.context?.forEach((c: string) => this.underwater.addContext(c));
+    data.alternatives?.forEach((a: any) => this.underwater.addAlternative(a.option, a.rejectionReason));
+    data.tradeoffs?.forEach((t: string) => this.underwater.addTradeoff(t));
+    data.risks?.forEach((r: string) => this.underwater.addRisk(r));
+    data.openQuestions?.forEach((q: string) => this.underwater.addOpenQuestion(q));
   }
 }

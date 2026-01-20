@@ -15,7 +15,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:gdd.start"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {

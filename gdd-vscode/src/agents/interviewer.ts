@@ -1,18 +1,27 @@
 import { Session } from '../core/session';
 import { AIClient } from '../utils/ai';
 import { InterviewSummary } from '../core/types';
+import { UnderwaterDocManager } from '../storage/underwater';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as vscode from 'vscode';
 
 export class InterviewerAgent {
   private session: Session;
   private ai: AIClient;
   private conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
   private systemPrompt: string;
+  private underwater: UnderwaterDocManager;
 
   constructor(session: Session, ai: AIClient) {
     this.session = session;
     this.ai = ai;
+
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
+    const state = session.getState();
+    const outputDir = state.outputDir || 'docs';
+    const docPath = path.join(workspaceRoot, outputDir, 'game-design-document.md');
+    this.underwater = new UnderwaterDocManager(docPath);
 
     // 加载系统提示词
     const promptPath = path.join(__dirname, '../../prompts/interviewer-system.txt');
@@ -44,6 +53,30 @@ export class InterviewerAgent {
     const summary: InterviewSummary = JSON.parse(summaryResponse.replace(/```json\n?|\n?```/g, ''));
     await this.session.setInterviewSummary(summary);
 
+    // Extract conversation insights
+    await this.extractConversationInsights();
+
     return summary;
+  }
+
+  private async extractConversationInsights() {
+    const systemPrompt = `分析访谈对话，提取关键洞察。输出JSON：
+{
+  "context": ["背景/约束"],
+  "openQuestions": ["待解决问题"]
+}`;
+
+    const userPrompt = `对话历史：
+${this.conversationHistory.slice(0, 20).map(m => `${m.role}: ${m.content}`).join('\n\n')}
+
+提取洞察。`;
+
+    const response = await this.ai.chat([{ role: 'user', content: userPrompt }], systemPrompt);
+    const data = JSON.parse(response.replace(/```json\n?|\n?```/g, ''));
+
+    await this.underwater.load();
+    data.context?.forEach((c: string) => this.underwater.addContext(c));
+    data.openQuestions?.forEach((q: string) => this.underwater.addOpenQuestion(q));
+    await this.underwater.save();
   }
 }

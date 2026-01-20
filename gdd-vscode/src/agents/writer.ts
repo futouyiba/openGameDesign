@@ -1,5 +1,6 @@
 import { Session } from '../core/session';
 import { AIClient } from '../utils/ai';
+import { UnderwaterDocManager } from '../storage/underwater';
 import * as vscode from 'vscode';
 import * as path from 'path';
 
@@ -17,6 +18,7 @@ export function setProgressProvider(provider: any) {
 export class WriterAgent {
   private session: Session;
   private ai: AIClient;
+  private underwater: UnderwaterDocManager;
   private outputPath: string;
   private sections: Section[] = [];
 
@@ -27,6 +29,7 @@ export class WriterAgent {
     const state = session.getState();
     const outputDir = state.outputDir || 'docs';
     this.outputPath = path.join(workspaceRoot, outputDir, 'game-design-document.md');
+    this.underwater = new UnderwaterDocManager(this.outputPath);
   }
 
   async start(): Promise<void> {
@@ -68,7 +71,12 @@ export class WriterAgent {
       );
     }
 
-    vscode.window.showInformationMessage('文档撰写完成！');
+    // Generate underwater doc
+    await this.underwater.load();
+    await this.generateUnderwaterDoc();
+    await this.underwater.save();
+
+    vscode.window.showInformationMessage('文档撰写完成！水下文档已生成。');
   }
 
   private async generateOutline() {
@@ -138,5 +146,37 @@ ${Object.entries(state.interviewSummary!.keyDecisions).map(([k, v]) => `- ${k}: 
     );
 
     await this.session.setCurrentDocument(this.outputPath);
+  }
+
+  private async generateUnderwaterDoc() {
+    const state = this.session.getState();
+    const systemPrompt = `你是游戏策划专家。分析访谈总结，提取水下文档信息。
+
+输出JSON格式：
+{
+  "context": ["背景信息", "约束条件"],
+  "alternatives": [{"option": "方案A", "rejectionReason": "原因"}],
+  "tradeoffs": ["权衡"],
+  "risks": ["风险"],
+  "openQuestions": ["待解决问题"]
+}`;
+
+    const userPrompt = `访谈总结：
+${JSON.stringify(state.interviewSummary, null, 2)}
+
+提取水下文档信息。`;
+
+    const response = await this.ai.chat([{ role: 'user', content: userPrompt }], systemPrompt);
+    const data = JSON.parse(response.replace(/```json\n?|\n?```/g, ''));
+
+    Object.entries(state.interviewSummary!.keyDecisions).forEach(([key, value]) => {
+      this.underwater.addDecision(key, value as string);
+    });
+
+    data.context?.forEach((c: string) => this.underwater.addContext(c));
+    data.alternatives?.forEach((a: any) => this.underwater.addAlternative(a.option, a.rejectionReason));
+    data.tradeoffs?.forEach((t: string) => this.underwater.addTradeoff(t));
+    data.risks?.forEach((r: string) => this.underwater.addRisk(r));
+    data.openQuestions?.forEach((q: string) => this.underwater.addOpenQuestion(q));
   }
 }
