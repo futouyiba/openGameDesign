@@ -2,8 +2,12 @@
   "name": "gdd-assistant",
   "displayName": "GDD Assistant",
   "description": "AI-driven game design document writing assistant",
-  "version": "0.1.0",
-  "publisher": "gdd",
+  "version": "0.2.0",
+  "publisher": "hyperbola-games",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/futouyiba/openGameDesign.git"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
