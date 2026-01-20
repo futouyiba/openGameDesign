@@ -186,7 +186,7 @@ export class ContextManager {
     });
 
     if (currentSection) {
-      currentSection.endLine = lines.length - 1;
+      (currentSection as any).endLine = lines.length - 1;
       sections.push(currentSection);
     }
 

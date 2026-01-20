@@ -47,7 +47,6 @@ async function testMailWorkflow() {
   console.log('已发送2封邮件\n');
 
   // 启动写作
-  const ai = new AIClient();
   const writer = new WriterAgent(session, ai);
 
   await session.setPhase('writing');

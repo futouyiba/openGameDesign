@@ -24,10 +24,8 @@ async function testWorkflow() {
     },
     writingDirection: '重点关注核心玩法机制、程序化生成系统和进度机制'
   });
-  console.log('访谈总结已创建。\n');
 
   // 测试写作
-  const ai = new AIClient();
   const writer = new WriterAgent(session, ai);
 
   await session.setPhase('writing');

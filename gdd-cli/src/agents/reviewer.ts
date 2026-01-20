@@ -107,9 +107,10 @@ export class ReviewerAgent {
     return sections;
   }
 
-  private findSectionByLine(sections: { title: string; content: string }[], targetLine: string): number {
+  private findSectionByLine(sections: { title: string; content: string }[], targetLine: number): number {
     for (let i = 0; i < sections.length; i++) {
-      if (sections[i].title.includes(targetLine) || sections[i].content.includes(targetLine)) {
+      const sectionLines = sections[i].content.split('\n').length;
+      if (targetLine <= sectionLines) {
         return i;
       }
     }
