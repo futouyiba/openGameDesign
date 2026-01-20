@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Session } from '../core/session';
 import { AIClient } from '../utils/ai';
+import OpenAI from 'openai';
 import { InterviewerAgent } from '../agents/interviewer';
 
 export class InterviewPanel {
@@ -34,6 +35,9 @@ export class InterviewPanel {
                     case 'answer':
                         await this.handleUserAnswer(message.text);
                         return;
+                    case 'transcribe':
+                        await this.handleTranscription(message.audio);
+                        return;
                     case 'done':
                         await this.finishInterview();
                         return;
@@ -64,6 +68,48 @@ export class InterviewPanel {
         } catch (error) {
             vscode.window.showErrorMessage(`AI调用失败: ${error}`);
         }
+    }
+
+    private async handleTranscription(audioDataUrl: string) {
+        try {
+            vscode.window.showInformationMessage('正在转录语音...');
+
+            const base64Audio = audioDataUrl.split(',')[1];
+            const audioBuffer = Buffer.from(base64Audio, 'base64');
+
+            // 使用 Anthropic API 的 Whisper 功能（如果支持）或调用外部 Whisper API
+            // 这里简化处理，实际需要集成 Whisper API
+            const transcription = await this.transcribeAudio(audioBuffer);
+
+            this._panel.webview.postMessage({
+                command: 'transcription',
+                text: transcription
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`语音转录失败: ${error}`);
+        }
+    }
+
+    private async transcribeAudio(audioBuffer: Buffer): Promise<string> {
+        const apiKey = vscode.workspace.getConfiguration('gdd').get<string>('openaiApiKey')
+                    || process.env.OPENAI_API_KEY;
+
+        if (!apiKey) {
+            throw new Error('请在设置中配置 OpenAI API Key (gdd.openaiApiKey)');
+        }
+
+        const openai = new OpenAI({ apiKey });
+
+        // 将 Buffer 转换为 File 对象
+        const file = new File([audioBuffer], 'audio.webm', { type: 'audio/webm' });
+
+        const transcription = await openai.audio.transcriptions.create({
+            file: file,
+            model: 'whisper-1',
+            language: 'zh'
+        });
+
+        return transcription.text;
     }
 
     private async sendAIMessage(text: string) {
@@ -180,17 +226,46 @@ export class InterviewPanel {
             background: var(--vscode-editor-background);
             border-top: 1px solid var(--vscode-panel-border);
         }
-        input {
-            width: calc(100% - 120px);
+        .input-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        textarea {
+            flex: 1;
+            min-height: 80px;
             padding: 10px;
             background: var(--vscode-input-background);
             color: var(--vscode-input-foreground);
             border: 1px solid var(--vscode-input-border);
             border-radius: 3px;
+            resize: vertical;
+            font-family: var(--vscode-font-family);
+        }
+        .mic-button {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .mic-button.recording {
+            background: #f14c4c;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
         button {
             padding: 10px 20px;
-            margin-left: 10px;
             background: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
             border: none;
@@ -206,13 +281,20 @@ export class InterviewPanel {
     <div class="chat-container" id="chat"></div>
 
     <div class="input-area">
-        <input type="text" id="answer" placeholder="输入你的回答..." />
-        <button onclick="sendAnswer()">发送</button>
-        <button onclick="finishInterview()">完成访谈</button>
+        <div class="input-container">
+            <button class="mic-button" id="micButton" onclick="toggleRecording()" title="语音输入 (Whisper)">🎤</button>
+            <textarea id="answer" placeholder="输入你的回答...&#10;支持多行输入，Shift+Enter换行，Enter发送"></textarea>
+        </div>
+        <div style="margin-top: 10px;">
+            <button onclick="sendAnswer()">发送</button>
+            <button onclick="finishInterview()">完成访谈</button>
+        </div>
     </div>
 
     <script>
         const vscode = acquireVsCodeApi();
+        let mediaRecorder;
+        let audioChunks = [];
 
         window.addEventListener('message', event => {
             const message = event.data;
@@ -223,6 +305,9 @@ export class InterviewPanel {
                 case 'aiMessage':
                     addAIMessage(message.text);
                     break;
+                case 'transcription':
+                    document.getElementById('answer').value += message.text;
+                    break;
             }
         });
 
@@ -232,7 +317,7 @@ export class InterviewPanel {
             aiMsg.className = 'message ai-message';
             aiMsg.innerHTML = '<strong>AI:</strong> ' + text;
             chat.appendChild(aiMsg);
-            chat.scrollTop = chat.scrollHeight;
+            setTimeout(() => chat.scrollTop = chat.scrollHeight, 100);
         }
 
         function sendAnswer() {
@@ -243,7 +328,7 @@ export class InterviewPanel {
             const chat = document.getElementById('chat');
             const userMsg = document.createElement('div');
             userMsg.className = 'message user-message';
-            userMsg.innerHTML = '<strong>你:</strong> ' + text;
+            userMsg.innerHTML = '<strong>你:</strong> ' + text.replace(/\n/g, '<br>');
             chat.appendChild(userMsg);
 
             vscode.postMessage({
@@ -252,7 +337,44 @@ export class InterviewPanel {
             });
 
             input.value = '';
-            chat.scrollTop = chat.scrollHeight;
+            setTimeout(() => chat.scrollTop = chat.scrollHeight, 100);
+        }
+
+        async function toggleRecording() {
+            const micButton = document.getElementById('micButton');
+
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                micButton.classList.remove('recording');
+            } else {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            vscode.postMessage({
+                                command: 'transcribe',
+                                audio: reader.result
+                            });
+                        };
+                        reader.readAsDataURL(audioBlob);
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    mediaRecorder.start();
+                    micButton.classList.add('recording');
+                } catch (err) {
+                    alert('无法访问麦克风: ' + err.message);
+                }
+            }
         }
 
         function finishInterview() {
@@ -261,8 +383,9 @@ export class InterviewPanel {
             });
         }
 
-        document.getElementById('answer').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+        document.getElementById('answer').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
                 sendAnswer();
             }
         });

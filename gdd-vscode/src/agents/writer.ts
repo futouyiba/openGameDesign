@@ -8,6 +8,12 @@ interface Section {
   content: string;
 }
 
+let globalProgressProvider: any = null;
+
+export function setProgressProvider(provider: any) {
+  globalProgressProvider = provider;
+}
+
 export class WriterAgent {
   private session: Session;
   private ai: AIClient;
@@ -18,7 +24,9 @@ export class WriterAgent {
     this.session = session;
     this.ai = ai;
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
-    this.outputPath = path.join(workspaceRoot, 'game-design-document.md');
+    const state = session.getState();
+    const outputDir = state.outputDir || 'docs';
+    this.outputPath = path.join(workspaceRoot, outputDir, 'game-design-document.md');
   }
 
   async start(): Promise<void> {
@@ -28,14 +36,36 @@ export class WriterAgent {
       return;
     }
 
-    // 生成大纲
+    vscode.window.showInformationMessage('开始生成文档大纲...');
     await this.generateOutline();
 
-    // 逐章节撰写
+    // 更新 Progress 显示章节
+    if (globalProgressProvider) {
+      globalProgressProvider.updateSections(
+        this.sections.map(s => ({ title: s.title, status: 'pending' }))
+      );
+    }
+
     for (let i = 0; i < this.sections.length; i++) {
+      // 更新当前章节状态
+      if (globalProgressProvider) {
+        const sections = this.sections.map((s, idx) => ({
+          title: s.title,
+          status: idx < i ? 'completed' : idx === i ? 'in_progress' : 'pending'
+        }));
+        globalProgressProvider.updateSections(sections);
+      }
+
       vscode.window.showInformationMessage(`正在撰写: ${this.sections[i].title} (${i + 1}/${this.sections.length})`);
       await this.writeSection(i);
       await this.saveDocument();
+    }
+
+    // 全部完成
+    if (globalProgressProvider) {
+      globalProgressProvider.updateSections(
+        this.sections.map(s => ({ title: s.title, status: 'completed' }))
+      );
     }
 
     vscode.window.showInformationMessage('文档撰写完成！');
@@ -97,6 +127,10 @@ ${Object.entries(state.interviewSummary!.keyDecisions).map(([k, v]) => `- ${k}: 
       .join('\n\n');
 
     const content = `# 游戏策划文档\n\n${document}`;
+
+    // 确保输出目录存在
+    const outputDir = require('path').dirname(this.outputPath);
+    await vscode.workspace.fs.createDirectory(vscode.Uri.file(outputDir));
 
     await vscode.workspace.fs.writeFile(
       vscode.Uri.file(this.outputPath),

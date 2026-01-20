@@ -27,8 +27,49 @@
       {
         "command": "gdd.preview",
         "title": "GDD: Preview Document"
+      },
+      {
+        "command": "gdd.addComment",
+        "title": "GDD: Add Comment"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "gdd.addComment",
+          "when": "editorHasSelection && resourceLangId == markdown",
+          "group": "gdd@1"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "gdd.addComment",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
+        "when": "editorTextFocus && resourceLangId == markdown"
+      }
+    ],
+    "configuration": {
+      "title": "GDD Assistant",
+      "properties": {
+        "gdd.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API Key for Claude"
+        },
+        "gdd.openaiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key for Whisper (语音转文字)"
+        },
+        "gdd.model": {
+          "type": "string",
+          "default": "claude-sonnet-4-5-20250929",
+          "description": "Claude model to use"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -65,6 +106,7 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.0"
+    "@anthropic-ai/sdk": "^0.30.0",
+    "openai": "^6.16.0"
   }
 }

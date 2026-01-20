@@ -2,15 +2,22 @@ export interface Mail {
   id: string;
   type: 'command' | 'opinion' | 'comment';
   priority: 'urgent' | 'normal' | 'low';
+  status: 'draft' | 'sent' | 'read' | 'processed';
+  from: 'user' | 'agent';
   content: string;
   comments?: Comment[];
   timestamp: Date;
-  processed: boolean;
 }
 
 export interface Comment {
-  range: { file: string; start: number; end: number };
+  range: {
+    file: string;
+    startLine: number;
+    endLine: number;
+    text?: string;
+  };
   content: string;
+  resolved: boolean;
 }
 
 export interface ReviewResult {
@@ -43,4 +50,5 @@ export interface SessionState {
   phase: 'interview' | 'writing' | 'reviewing';
   currentDocument?: string;
   interviewSummary?: InterviewSummary;
+  outputDir?: string;
 }
