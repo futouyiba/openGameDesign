@@ -62,4 +62,21 @@ export class Session {
     this.state.interviewSummary = summary;
     await this.saveState();
   }
+
+  async setConversationHistory(history: Array<{ role: 'user' | 'assistant'; content: string }>) {
+    this.state.conversationHistory = history;
+    await this.saveState();
+  }
+
+  async addConversationMessage(message: { role: 'user' | 'assistant'; content: string }) {
+    if (!this.state.conversationHistory) {
+      this.state.conversationHistory = [];
+    }
+    this.state.conversationHistory.push(message);
+    await this.saveState();
+  }
+
+  getConversationHistory(): Array<{ role: 'user' | 'assistant'; content: string }> {
+    return this.state.conversationHistory || [];
+  }
 }

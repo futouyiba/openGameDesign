@@ -43,4 +43,5 @@ export interface SessionState {
   phase: 'interview' | 'writing' | 'reviewing';
   currentDocument?: string;
   interviewSummary?: InterviewSummary;
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }

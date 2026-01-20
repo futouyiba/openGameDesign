@@ -51,4 +51,5 @@ export interface SessionState {
   currentDocument?: string;
   interviewSummary?: InterviewSummary;
   outputDir?: string;
+  conversationHistory?: Array<{ role: 'ai' | 'user'; content: string }>;
 }

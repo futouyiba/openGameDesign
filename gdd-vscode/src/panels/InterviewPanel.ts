@@ -30,7 +30,7 @@ export class InterviewPanel {
                 switch (message.command) {
                     case 'init':
                         await this.session.init();
-                        await this.sendAIMessage('你好！我将帮助你创建游戏策划文档。请告诉我，你想创建什么类型的游戏？');
+                        await this.initializeInterview();
                         return;
                     case 'answer':
                         await this.handleUserAnswer(message.text);
@@ -48,8 +48,37 @@ export class InterviewPanel {
         );
     }
 
+    private async initializeInterview() {
+        const state = this.session.getState();
+        const history = this.session.getConversationHistory();
+
+        if (history.length > 0) {
+            // 恢复之前的对话
+            for (const message of history) {
+                if (message.role === 'ai') {
+                    await this.sendAIMessage(message.content);
+                } else {
+                    this.displayUserMessage(message.content);
+                }
+            }
+        } else {
+            // 新访谈，发送初始问候
+            await this.sendAIMessage('你好！我将帮助你创建游戏策划文档。请告诉我，你想创建什么类型的游戏？');
+        }
+
+        this.conversationHistory = history;
+    }
+
+    private displayUserMessage(text: string) {
+        this._panel.webview.postMessage({
+            command: 'displayUserMessage',
+            text: text
+        });
+    }
+
     private async handleUserAnswer(text: string) {
         this.conversationHistory.push({ role: 'user', content: text });
+        await this.session.addConversationMessage({ role: 'user', content: text });
 
         // 调用AI生成回复
         try {
@@ -63,6 +92,7 @@ export class InterviewPanel {
             const response = await this.ai.chat(messages, systemPrompt);
 
             this.conversationHistory.push({ role: 'ai', content: response });
+            await this.session.addConversationMessage({ role: 'ai', content: response });
 
             await this.sendAIMessage(response);
         } catch (error) {
@@ -298,11 +328,11 @@ export class InterviewPanel {
         window.addEventListener('message', event => {
             const message = event.data;
             switch (message.command) {
-                case 'init':
-                    vscode.postMessage({ command: 'init' });
-                    break;
                 case 'aiMessage':
                     addAIMessage(message.text);
+                    break;
+                case 'displayUserMessage':
+                    displayUserMessage(message.text);
                     break;
                 case 'transcription':
                     document.getElementById('answer').value += message.text;
@@ -316,6 +346,15 @@ export class InterviewPanel {
             aiMsg.className = 'message ai-message';
             aiMsg.innerHTML = '<strong>AI:</strong> ' + text;
             chat.appendChild(aiMsg);
+            setTimeout(() => chat.scrollTop = chat.scrollHeight, 100);
+        }
+
+        function displayUserMessage(text) {
+            const chat = document.getElementById('chat');
+            const userMsg = document.createElement('div');
+            userMsg.className = 'message user-message';
+            userMsg.innerHTML = '<strong>你:</strong> ' + text.replace(/\n/g, '<br>');
+            chat.appendChild(userMsg);
             setTimeout(() => chat.scrollTop = chat.scrollHeight, 100);
         }
 

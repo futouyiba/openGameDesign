@@ -25,22 +25,37 @@ export class InterviewerAgent {
       return;
     }
 
-    console.log('\n=== Interview Phase ===\n');
-    console.log('I will ask you questions to understand your game design document needs.');
-    console.log('Type "done" when you are ready to start writing.\n');
+    const savedHistory = this.session.getConversationHistory();
+
+    if (savedHistory.length > 0) {
+      console.log('\n=== 恢复之前的访谈 ===\n');
+      savedHistory.forEach(msg => {
+        if (msg.role === 'assistant') {
+          console.log(`Interviewer: ${msg.content}\n`);
+        } else {
+          console.log(`You: ${msg.content}\n`);
+        }
+      });
+      this.conversationHistory = savedHistory;
+    } else {
+      console.log('\n=== Interview Phase ===\n');
+      console.log('I will ask you questions to understand your game design document needs.');
+      console.log('Type "done" when you are ready to start writing.\n');
+
+      this.conversationHistory.push({
+        role: 'user',
+        content: '我想创建一份游戏策划文档。请开始访谈。'
+      });
+    }
 
     const systemPrompt = `你是一位专业的游戏策划访谈专家。你的目标是通过深入的提问来充分理解用户的游戏设计文档需求。建设性地挑战他们的想法，帮助他们思考得更深入。每次只问一个问题。保持简洁直接。使用中文交流。`;
-
-    this.conversationHistory.push({
-      role: 'user',
-      content: '我想创建一份游戏策划文档。请开始访谈。'
-    });
 
     try {
       while (true) {
         const aiResponse = await this.ai.chat(this.conversationHistory, systemPrompt);
         console.log(`\nInterviewer: ${aiResponse}\n`);
         this.conversationHistory.push({ role: 'assistant', content: aiResponse });
+        await this.session.addConversationMessage({ role: 'assistant', content: aiResponse });
 
         const { answer } = await inquirer.prompt([{
           type: 'input',
@@ -53,6 +68,7 @@ export class InterviewerAgent {
         }
 
         this.conversationHistory.push({ role: 'user', content: answer });
+        await this.session.addConversationMessage({ role: 'user', content: answer });
       }
 
       await this.generateSummary();

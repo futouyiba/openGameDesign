@@ -57,4 +57,21 @@ export class Session {
     this.state.interviewSummary = summary;
     await this.saveState();
   }
+
+  async setConversationHistory(history: Array<{ role: 'ai' | 'user'; content: string }>) {
+    this.state.conversationHistory = history;
+    await this.saveState();
+  }
+
+  async addConversationMessage(message: { role: 'ai' | 'user'; content: string }) {
+    if (!this.state.conversationHistory) {
+      this.state.conversationHistory = [];
+    }
+    this.state.conversationHistory.push(message);
+    await this.saveState();
+  }
+
+  getConversationHistory(): Array<{ role: 'ai' | 'user'; content: string }> {
+    return this.state.conversationHistory || [];
+  }
 }
