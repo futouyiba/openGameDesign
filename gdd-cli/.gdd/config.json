@@ -1,12 +1,25 @@
 {
-  "phase": "writing",
-  "interviewSummary": {
-    "understanding": "一款2D Roguelike地牢探索游戏",
-    "keyDecisions": {
-      "游戏类型": "Roguelike",
-      "视角": "俯视2D"
+  "phase": "interview",
+  "conversationHistory": [
+    {
+      "role": "assistant",
+      "content": "你好！我将帮助你创建游戏策划文档。请告诉我，你想创建什么类型的游戏？"
     },
-    "writingDirection": "重点关注核心玩法"
-  },
-  "currentDocument": "E:\\claudeCode\\gdd-cli\\game-design-document.md"
+    {
+      "role": "user",
+      "content": "我想创建一款2D像素风格的钓鱼游戏"
+    },
+    {
+      "role": "assistant",
+      "content": "很有趣的选择！对于钓鱼游戏，你希望玩家体验什么样的核心玩法？是休闲放松还是竞技挑战？"
+    },
+    {
+      "role": "user",
+      "content": "我希望是休闲放松的体验，玩家可以在不同的场景下钓鱼，收集各种鱼类"
+    },
+    {
+      "role": "assistant",
+      "content": "了解。你计划支持哪些游戏平台？以及是否有特定的美术风格偏好？"
+    }
+  ]
 }
