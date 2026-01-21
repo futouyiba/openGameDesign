@@ -17,6 +17,19 @@
 - Commander.js (CLI)
 - VS Code Extension API
 
+### 自动化测试
+
+本项目包含完整的 UI 自动化测试套件（Powered by VEDATS），用于验证 VS Code 扩展的交互与 Writer Mode 功能。
+
+运行测试：
+
+```bash
+cd gdd-vscode
+npm run test:ui
+```
+
+更多详情请参考 [UI 测试文档](./gdd-vscode/tests/ui/README.md)。
+
 ## 核心功能
 
 ### 1. 三阶段工作流
