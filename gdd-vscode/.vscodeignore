@@ -5,3 +5,6 @@ src
 tsconfig.json
 .vscode
 .gitignore
+tests
+artifacts
+out/test

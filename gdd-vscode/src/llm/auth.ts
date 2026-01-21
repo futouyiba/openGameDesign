@@ -142,16 +142,6 @@ async function startCodexOAuthFlow(): Promise<CodexTokens> {
 
 function waitForOAuthCallback(pkce: PkceCodes, state: string, redirectUri: string): Promise<CodexTokens> {
   return new Promise((resolve, reject) => {
-    const finalizeResolve = (value: CodexTokens) => {
-      clearTimeout(timeout);
-      resolve(value);
-    };
-
-    const finalizeReject = (error: unknown) => {
-      clearTimeout(timeout);
-      reject(error);
-    };
-
     const server = http.createServer(async (req, res) => {
       try {
         if (!req.url) {
@@ -172,7 +162,7 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string, redirectUri: strin
           res.statusCode = 400;
           res.end('Authorization failed');
           server.close();
-          finalizeReject(new Error(error));
+          reject(new Error(error));
           return;
         }
 
@@ -183,7 +173,7 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string, redirectUri: strin
           res.statusCode = 400;
           res.end('Invalid authorization');
           server.close();
-          finalizeReject(new Error('OAuth callback invalid'));
+          reject(new Error('OAuth callback invalid'));
           return;
         }
 
@@ -191,12 +181,12 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string, redirectUri: strin
         res.statusCode = 200;
         res.end('Authorization successful. You can close this window.');
         server.close();
-        finalizeResolve(tokens);
+        resolve(tokens);
       } catch (err) {
         res.statusCode = 500;
         res.end('Authorization failed');
         server.close();
-        finalizeReject(err);
+        reject(err);
       }
     });
 
@@ -204,8 +194,14 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string, redirectUri: strin
 
     const timeout = setTimeout(() => {
       server.close();
-      finalizeReject(new Error('OAuth authorization timed out'));
+      reject(new Error('OAuth authorization timed out'));
     }, 5 * 60 * 1000);
+
+    const originalResolve = resolve;
+    resolve = (value: CodexTokens | PromiseLike<CodexTokens>) => {
+      clearTimeout(timeout);
+      originalResolve(value);
+    };
   });
 }
 

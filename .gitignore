@@ -29,6 +29,9 @@ npm-debug.log*
 # Debug/Temporary files
 errorImages/
 
+# UI test artifacts
+**/artifacts/vscode-ui/
+
 # Environment
 .env
 .env.local

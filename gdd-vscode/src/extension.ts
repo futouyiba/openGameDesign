@@ -33,6 +33,10 @@ function readGlobalValue<T>(config: vscode.WorkspaceConfiguration, key: string):
     return inspected.globalValue;
 }
 
+function isSettingRegistered(config: vscode.WorkspaceConfiguration, key: string): boolean {
+    return config.inspect(key) !== undefined;
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('GDD Assistant is now active');
 
@@ -255,13 +259,24 @@ export function activate(context: vscode.ExtensionContext) {
             "sideBarSectionHeader.background": "#18181B"
         };
 
-        await Promise.all([
-            config.update('workbench.activityBar.visible', false, vscode.ConfigurationTarget.Global),
-            config.update('workbench.statusBar.visible', false, vscode.ConfigurationTarget.Global),
-            config.update('editor.minimap.enabled', false, vscode.ConfigurationTarget.Global),
-            config.update('breadcrumbs.enabled', false, vscode.ConfigurationTarget.Global),
-            config.update('workbench.colorCustomizations', luminaTheme, vscode.ConfigurationTarget.Global)
-        ]);
+        const updates: Thenable<void>[] = [];
+        const queueUpdate = (key: string, value: unknown) => {
+            if (isSettingRegistered(config, key)) {
+                updates.push(
+                    config.update(key, value, vscode.ConfigurationTarget.Global).then(undefined, (error) => {
+                        console.warn(`Writer Mode setting update failed for ${key}:`, error);
+                    })
+                );
+            }
+        };
+
+        queueUpdate('workbench.activityBar.visible', false);
+        queueUpdate('workbench.statusBar.visible', false);
+        queueUpdate('editor.minimap.enabled', false);
+        queueUpdate('breadcrumbs.enabled', false);
+        queueUpdate('workbench.colorCustomizations', luminaTheme);
+
+        await Promise.all(updates);
 
         vscode.window.showInformationMessage('Writer Mode Enabled: Focused environment active.');
     });
@@ -278,29 +293,36 @@ export function activate(context: vscode.ExtensionContext) {
             ? undefined
             : snapshot['workbench.colorCustomizations'];
 
-        await Promise.all([
-            config.update(
-                'workbench.activityBar.visible',
-                snapshot['workbench.activityBar.visible'] === null ? undefined : snapshot['workbench.activityBar.visible'],
-                vscode.ConfigurationTarget.Global
-            ),
-            config.update(
-                'workbench.statusBar.visible',
-                snapshot['workbench.statusBar.visible'] === null ? undefined : snapshot['workbench.statusBar.visible'],
-                vscode.ConfigurationTarget.Global
-            ),
-            config.update(
-                'editor.minimap.enabled',
-                snapshot['editor.minimap.enabled'] === null ? undefined : snapshot['editor.minimap.enabled'],
-                vscode.ConfigurationTarget.Global
-            ),
-            config.update(
-                'breadcrumbs.enabled',
-                snapshot['breadcrumbs.enabled'] === null ? undefined : snapshot['breadcrumbs.enabled'],
-                vscode.ConfigurationTarget.Global
-            ),
-            config.update('workbench.colorCustomizations', restoredColorCustomizations, vscode.ConfigurationTarget.Global)
-        ]);
+        const updates: Thenable<void>[] = [];
+        const queueUpdate = (key: string, value: unknown) => {
+            if (isSettingRegistered(config, key)) {
+                updates.push(
+                    config.update(key, value, vscode.ConfigurationTarget.Global).then(undefined, (error) => {
+                        console.warn(`Writer Mode setting restore failed for ${key}:`, error);
+                    })
+                );
+            }
+        };
+
+        queueUpdate(
+            'workbench.activityBar.visible',
+            snapshot['workbench.activityBar.visible'] === null ? undefined : snapshot['workbench.activityBar.visible']
+        );
+        queueUpdate(
+            'workbench.statusBar.visible',
+            snapshot['workbench.statusBar.visible'] === null ? undefined : snapshot['workbench.statusBar.visible']
+        );
+        queueUpdate(
+            'editor.minimap.enabled',
+            snapshot['editor.minimap.enabled'] === null ? undefined : snapshot['editor.minimap.enabled']
+        );
+        queueUpdate(
+            'breadcrumbs.enabled',
+            snapshot['breadcrumbs.enabled'] === null ? undefined : snapshot['breadcrumbs.enabled']
+        );
+        queueUpdate('workbench.colorCustomizations', restoredColorCustomizations);
+
+        await Promise.all(updates);
 
         await context.globalState.update(writerModeSnapshotKey, undefined);
         await context.globalState.update(writerModeEnabledKey, false);
