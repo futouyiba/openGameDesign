@@ -1,0 +1,3 @@
+[submodule "vscode-ui-test-skill"]
+	path = vscode-ui-test-skill
+	url = https://github.com/futouyiba/vedats.git
