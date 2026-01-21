@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
 import * as crypto from 'crypto';
+import { log } from '../utils/logger';
 
 const CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const CODEX_ISSUER = 'https://auth.openai.com';
@@ -133,6 +134,8 @@ async function startCodexOAuthFlow(): Promise<CodexTokens> {
 
   const authUrl = buildAuthorizeUrl(redirectUri, pkce, state);
 
+  log('Starting Codex OAuth flow', { authUrl, redirectUri });
+
   const tokensPromise = waitForOAuthCallback(pkce, state, redirectUri);
   await vscode.env.openExternal(vscode.Uri.parse(authUrl));
 
@@ -142,7 +145,9 @@ async function startCodexOAuthFlow(): Promise<CodexTokens> {
 
 function waitForOAuthCallback(pkce: PkceCodes, state: string, redirectUri: string): Promise<CodexTokens> {
   return new Promise((resolve, reject) => {
+    log('Waiting for OAuth callback on port ' + CODEX_OAUTH_PORT);
     const server = http.createServer(async (req, res) => {
+      log('Received HTTP request', { url: req.url });
       try {
         if (!req.url) {
           res.statusCode = 400;
@@ -159,6 +164,7 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string, redirectUri: strin
 
         const error = url.searchParams.get('error');
         if (error) {
+          log('OAuth error from callback', error);
           res.statusCode = 400;
           res.end('Authorization failed');
           server.close();
@@ -178,6 +184,7 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string, redirectUri: strin
         }
 
         const tokens = await exchangeCodeForTokens(code, redirectUri, pkce);
+        log('Token exchange successful');
         res.statusCode = 200;
         res.end('Authorization successful. You can close this window.');
         server.close();

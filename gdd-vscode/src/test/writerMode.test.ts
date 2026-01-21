@@ -82,7 +82,7 @@ suite('Writer Mode Test Suite', () => {
 		if (profileName) {
 			assert.strictEqual(recordedProfile, profileName, 'Expected profile name to match');
 		} else {
-			assert.strictEqual(recordedProfile, '', 'Expected profile name to be empty');
+			assert.strictEqual(recordedProfile, '__none__', `Expected profile name to be __none__, got: "${recordedProfile}"`);
 		}
 	});
 });

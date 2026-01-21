@@ -34,7 +34,7 @@ async function main() {
 
         process.env.GDD_TEST_USER_DATA_DIR = userDataDir;
         process.env.GDD_TEST_EXTENSIONS_DIR = extensionsDir;
-        process.env.GDD_TEST_PROFILE = profileName ?? '';
+        process.env.GDD_TEST_PROFILE = profileName ?? '__none__';
         process.env.GDD_TEST_VERSION = version;
 
         await runTests({

@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { ensureApiKey, ensureCodexOAuth } from '../llm/auth';
 import { getProviderDefinition } from '../llm/registry';
 import { ChatMessage, LlmSelection } from '../llm/types';
+import { log } from './logger';
 
 const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 
@@ -148,6 +149,8 @@ export class AIClient {
       headers['ChatGPT-Account-Id'] = tokens.accountId;
     }
 
+    log('Calling Codex API', { endpoint, model: this.selection.modelId });
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers,
@@ -159,10 +162,13 @@ export class AIClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Codex request failed: ${response.status}`);
+      const errorText = await response.text();
+      log('Codex API error', { status: response.status, body: errorText });
+      throw new Error(`Codex request failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    log('Codex API success', { response: data });
     return extractResponseText(data);
   }
 }
