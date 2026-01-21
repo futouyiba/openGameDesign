@@ -52,4 +52,8 @@ export interface SessionState {
   interviewSummary?: InterviewSummary;
   outputDir?: string;
   conversationHistory?: Array<{ role: 'ai' | 'user'; content: string }>;
+  llmSelection?: {
+    providerId: string;
+    modelId: string;
+  };
 }

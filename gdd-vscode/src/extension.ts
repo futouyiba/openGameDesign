@@ -5,6 +5,7 @@ import { ProgressProvider } from './providers/ProgressProvider';
 import { MailProvider } from './providers/MailProvider';
 import { Session } from './core/session';
 import { AIClient } from './utils/ai';
+import { resolveLlmSelection } from './llm/selection';
 import { WriterAgent, setProgressProvider } from './agents/writer';
 import { ReviewerAgent } from './agents/reviewer';
 import { CommentController } from './comments/CommentController';
@@ -12,6 +13,25 @@ import { CommentController } from './comments/CommentController';
 let progressProvider: ProgressProvider;
 let mailProvider: MailProvider;
 let commentController: CommentController | undefined;
+
+const writerModeSnapshotKey = 'gdd.writerMode.snapshot';
+const writerModeEnabledKey = 'gdd.writerMode.enabled';
+
+interface WriterModeSnapshot {
+    'workbench.activityBar.visible': boolean | null;
+    'workbench.statusBar.visible': boolean | null;
+    'editor.minimap.enabled': boolean | null;
+    'breadcrumbs.enabled': boolean | null;
+    'workbench.colorCustomizations': Record<string, string> | null;
+}
+
+function readGlobalValue<T>(config: vscode.WorkspaceConfiguration, key: string): T | null {
+    const inspected = config.inspect<T>(key);
+    if (!inspected || inspected.globalValue === undefined) {
+        return null;
+    }
+    return inspected.globalValue;
+}
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('GDD Assistant is now active');
@@ -38,7 +58,8 @@ export function activate(context: vscode.ExtensionContext) {
         // 如果已经在访谈阶段且有未完成的访谈，直接打开访谈面板
         if (state.phase === 'interview') {
             progressProvider.updatePhase('interview', 'in_progress');
-            InterviewPanel.render(context.extensionUri);
+            await resolveLlmSelection(context, session);
+            InterviewPanel.render(context);
             return;
         }
 
@@ -55,8 +76,9 @@ export function activate(context: vscode.ExtensionContext) {
         state.outputDir = outputDir;
         await session.saveState();
 
+        await resolveLlmSelection(context, session);
         progressProvider.updatePhase('interview', 'in_progress');
-        InterviewPanel.render(context.extensionUri);
+        InterviewPanel.render(context);
     });
 
     const startWritingCommand = vscode.commands.registerCommand('gdd.startWriting', async () => {
@@ -71,7 +93,8 @@ export function activate(context: vscode.ExtensionContext) {
         const session = new Session(workspaceRoot);
         await session.init();
 
-        const ai = new AIClient();
+        const selection = await resolveLlmSelection(context, session);
+        const ai = new AIClient(context, selection);
         const writer = new WriterAgent(session, ai);
 
         await writer.start();
@@ -202,15 +225,24 @@ export function activate(context: vscode.ExtensionContext) {
 
     const enableWriterModeCommand = vscode.commands.registerCommand('gdd.enableWriterMode', async () => {
         const config = vscode.workspace.getConfiguration();
-        
-        // Hide UI elements
-        await config.update('workbench.activityBar.visible', false, vscode.ConfigurationTarget.Global);
-        await config.update('workbench.statusBar.visible', false, vscode.ConfigurationTarget.Global);
-        await config.update('editor.minimap.enabled', false, vscode.ConfigurationTarget.Global);
-        await config.update('breadcrumbs.enabled', false, vscode.ConfigurationTarget.Global);
-        
-        // Apply Color Theme customization
-        const luminaTheme = {
+        const isEnabled = context.globalState.get<boolean>(writerModeEnabledKey) === true;
+        if (isEnabled) {
+            vscode.window.showInformationMessage('Writer Mode is already enabled.');
+            return;
+        }
+
+        const snapshot: WriterModeSnapshot = {
+            'workbench.activityBar.visible': readGlobalValue<boolean>(config, 'workbench.activityBar.visible'),
+            'workbench.statusBar.visible': readGlobalValue<boolean>(config, 'workbench.statusBar.visible'),
+            'editor.minimap.enabled': readGlobalValue<boolean>(config, 'editor.minimap.enabled'),
+            'breadcrumbs.enabled': readGlobalValue<boolean>(config, 'breadcrumbs.enabled'),
+            'workbench.colorCustomizations': readGlobalValue<Record<string, string>>(config, 'workbench.colorCustomizations')
+        };
+
+        await context.globalState.update(writerModeSnapshotKey, snapshot);
+        await context.globalState.update(writerModeEnabledKey, true);
+
+        const luminaTheme: Record<string, string> = {
             "sideBar.background": "#18181B",
             "editor.background": "#18181B",
             "activityBar.background": "#18181B",
@@ -222,24 +254,57 @@ export function activate(context: vscode.ExtensionContext) {
             "sideBar.border": "#27272A",
             "sideBarSectionHeader.background": "#18181B"
         };
-        
-        await config.update('workbench.colorCustomizations', luminaTheme, vscode.ConfigurationTarget.Global);
-        
+
+        await Promise.all([
+            config.update('workbench.activityBar.visible', false, vscode.ConfigurationTarget.Global),
+            config.update('workbench.statusBar.visible', false, vscode.ConfigurationTarget.Global),
+            config.update('editor.minimap.enabled', false, vscode.ConfigurationTarget.Global),
+            config.update('breadcrumbs.enabled', false, vscode.ConfigurationTarget.Global),
+            config.update('workbench.colorCustomizations', luminaTheme, vscode.ConfigurationTarget.Global)
+        ]);
+
         vscode.window.showInformationMessage('Writer Mode Enabled: Focused environment active.');
     });
 
     const disableWriterModeCommand = vscode.commands.registerCommand('gdd.disableWriterMode', async () => {
         const config = vscode.workspace.getConfiguration();
-        
-        // Restore UI elements (reset to undefined to use default/user settings)
-        await config.update('workbench.activityBar.visible', undefined, vscode.ConfigurationTarget.Global);
-        await config.update('workbench.statusBar.visible', undefined, vscode.ConfigurationTarget.Global);
-        await config.update('editor.minimap.enabled', undefined, vscode.ConfigurationTarget.Global);
-        await config.update('breadcrumbs.enabled', undefined, vscode.ConfigurationTarget.Global);
-        
-        // Remove Color Theme customization
-        await config.update('workbench.colorCustomizations', undefined, vscode.ConfigurationTarget.Global);
-        
+        const snapshot = context.globalState.get<WriterModeSnapshot>(writerModeSnapshotKey);
+        if (!snapshot) {
+            vscode.window.showInformationMessage('Writer Mode is not enabled.');
+            return;
+        }
+
+        const restoredColorCustomizations = snapshot['workbench.colorCustomizations'] === null
+            ? undefined
+            : snapshot['workbench.colorCustomizations'];
+
+        await Promise.all([
+            config.update(
+                'workbench.activityBar.visible',
+                snapshot['workbench.activityBar.visible'] === null ? undefined : snapshot['workbench.activityBar.visible'],
+                vscode.ConfigurationTarget.Global
+            ),
+            config.update(
+                'workbench.statusBar.visible',
+                snapshot['workbench.statusBar.visible'] === null ? undefined : snapshot['workbench.statusBar.visible'],
+                vscode.ConfigurationTarget.Global
+            ),
+            config.update(
+                'editor.minimap.enabled',
+                snapshot['editor.minimap.enabled'] === null ? undefined : snapshot['editor.minimap.enabled'],
+                vscode.ConfigurationTarget.Global
+            ),
+            config.update(
+                'breadcrumbs.enabled',
+                snapshot['breadcrumbs.enabled'] === null ? undefined : snapshot['breadcrumbs.enabled'],
+                vscode.ConfigurationTarget.Global
+            ),
+            config.update('workbench.colorCustomizations', restoredColorCustomizations, vscode.ConfigurationTarget.Global)
+        ]);
+
+        await context.globalState.update(writerModeSnapshotKey, undefined);
+        await context.globalState.update(writerModeEnabledKey, false);
+
         vscode.window.showInformationMessage('Writer Mode Disabled: Standard VS Code environment restored.');
     });
 

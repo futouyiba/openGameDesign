@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Session } from '../core/session';
 import { AIClient } from '../utils/ai';
+import { getDefaultSelection, resolveLlmSelection } from '../llm/selection';
 import OpenAI from 'openai';
 import { InterviewerAgent } from '../agents/interviewer';
 
@@ -12,14 +13,16 @@ export class InterviewPanel {
     private ai: AIClient;
     private interviewer: InterviewerAgent;
     private conversationHistory: Array<{ role: 'ai' | 'user'; content: string }> = [];
+    private context: vscode.ExtensionContext;
 
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
         this._panel = panel;
+        this.context = context;
 
         // 初始化Session和AI
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
         this.session = new Session(workspaceRoot);
-        this.ai = new AIClient();
+        this.ai = new AIClient(context, getDefaultSelection());
         this.interviewer = new InterviewerAgent(this.session, this.ai);
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -30,6 +33,8 @@ export class InterviewPanel {
                 switch (message.command) {
                     case 'init':
                         await this.session.init();
+                        const selection = await resolveLlmSelection(this.context, this.session);
+                        this.ai.updateSelection(selection);
                         await this.initializeInterview();
                         return;
                     case 'answer':
@@ -185,7 +190,7 @@ export class InterviewPanel {
         }
     }
 
-    public static render(extensionUri: vscode.Uri) {
+    public static render(context: vscode.ExtensionContext) {
         if (InterviewPanel.currentPanel) {
             InterviewPanel.currentPanel._panel.reveal(vscode.ViewColumn.One);
             return;
@@ -201,7 +206,7 @@ export class InterviewPanel {
             }
         );
 
-        InterviewPanel.currentPanel = new InterviewPanel(panel, extensionUri);
+        InterviewPanel.currentPanel = new InterviewPanel(panel, context);
     }
 
     public dispose() {
@@ -224,69 +229,79 @@ export class InterviewPanel {
     <title>GDD 访谈</title>
     <style>
         :root {
-            /* Lumina Palette - Graphite & Paper */
             --lumina-bg: #18181B;
             --lumina-surface: #1C1C1F;
             --lumina-border: rgba(255, 255, 255, 0.08);
             --lumina-text-primary: #F4F4F5;
             --lumina-text-secondary: #A1A1AA;
             --lumina-accent: #A5F3FC;
-            --lumina-user-bg: #27272A;
-            --lumina-ai-bg: transparent;
-            
-            /* Typography */
+            --lumina-error: #FDA4AF;
+
             --font-interface: 'General Sans', system-ui, -apple-system, sans-serif;
-            --font-prose: 'IA Writer Duo', 'Input Sans', 'Menlo', 'Monaco', monospace;
+            --font-prose: 'IA Writer Duo', 'Input Sans', 'Menlo', monospace;
         }
 
         body {
-            padding: 40px;
-            padding-bottom: 120px;
+            padding: 40px 20px 140px;
             font-family: var(--font-interface);
             background-color: var(--lumina-bg);
             color: var(--lumina-text-primary);
-            line-height: 1.6;
+            line-height: 1.75;
             margin: 0;
-            overflow-x: hidden;
         }
 
         .chat-container {
-            max-width: 900px; /* Wider for editorial feel */
+            max-width: 720px;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 2rem;
+            gap: 3rem;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .message {
-            padding: 1.5rem;
-            border-radius: 12px;
-            transition: all 0.3s ease;
+            animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
             max-width: 100%;
+            position: relative;
         }
 
         .ai-message {
-            background: var(--lumina-ai-bg);
-            border-left: none; /* Removed hard border */
+            background: transparent;
             color: var(--lumina-text-primary);
+            font-size: 1.1rem;
+            letter-spacing: -0.01em;
         }
 
         .user-message {
-            background: var(--lumina-user-bg);
-            border-left: none; /* Removed hard border */
-            align-self: flex-start;
-            width: 100%;
-            box-sizing: border-box;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* Soft shadow */
+            background: transparent;
+            border-left: 2px solid var(--lumina-accent);
+            padding-left: 1.5rem;
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            color: var(--lumina-text-secondary);
+            font-family: var(--font-prose);
         }
 
         .user-message strong, .ai-message strong {
             display: block;
             margin-bottom: 0.5rem;
-            color: var(--lumina-text-secondary);
-            font-size: 0.85rem;
+            font-family: var(--font-interface);
+            font-size: 0.75rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.1em;
+            opacity: 0.5;
+        }
+
+        .ai-message strong {
+            color: var(--lumina-accent);
+        }
+
+        .user-message strong {
+            color: var(--lumina-text-secondary);
         }
 
         .input-area {
@@ -294,43 +309,49 @@ export class InterviewPanel {
             bottom: 0;
             left: 0;
             right: 0;
-            padding: 24px;
-            background: linear-gradient(to top, var(--lumina-bg) 90%, transparent); /* Fade out top */
+            padding: 40px 20px;
+            background: linear-gradient(to top, var(--lumina-bg) 80%, transparent);
             display: flex;
             justify-content: center;
+            z-index: 10;
         }
 
         .input-wrapper {
-            max-width: 900px;
+            max-width: 720px;
             width: 100%;
-            position: relative;
-            background: var(--lumina-bg);
+            background: var(--lumina-surface);
             border: 1px solid var(--lumina-border);
             border-radius: 12px;
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.3);
-            padding: 12px;
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);
+            padding: 16px;
             display: flex;
-            gap: 12px;
+            gap: 16px;
             align-items: flex-end;
+            transition: border-color 0.2s ease;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: rgba(165, 243, 252, 0.2);
         }
 
         textarea {
             flex: 1;
             min-height: 24px;
-            max-height: 200px;
-            padding: 8px;
+            max-height: 300px;
+            padding: 4px;
             background: transparent;
             color: var(--lumina-text-primary);
             border: none;
             resize: none;
             font-family: var(--font-prose);
             font-size: 1rem;
+            line-height: 1.6;
             outline: none;
         }
 
         textarea::placeholder {
             color: var(--lumina-text-secondary);
-            opacity: 0.5;
+            opacity: 0.3;
         }
 
         .buttons-area {
@@ -339,39 +360,42 @@ export class InterviewPanel {
         }
 
         .mic-button {
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
             background: transparent;
             color: var(--lumina-text-secondary);
-            border: 1px solid var(--lumina-border);
-            border-radius: 8px;
+            border: 1px solid transparent;
+            border-radius: 6px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
         }
 
         .mic-button:hover {
-            background: var(--lumina-user-bg);
+            background: rgba(255,255,255,0.05);
             color: var(--lumina-text-primary);
         }
 
         .mic-button.recording {
-            color: #ef4444;
-            border-color: #ef4444;
+            color: var(--lumina-error);
+            background: rgba(253, 164, 175, 0.1);
             animation: pulse 2s infinite;
         }
 
         button#sendButton {
-            padding: 8px 16px;
+            padding: 8px 20px;
             background: var(--lumina-text-primary);
             color: var(--lumina-bg);
             border: none;
-            border-radius: 8px;
-            font-weight: 600;
+            border-radius: 6px;
+            font-family: var(--font-interface);
+            font-weight: 500;
+            font-size: 0.9rem;
             cursor: pointer;
             height: 36px;
+            transition: opacity 0.2s ease;
         }
 
         button#sendButton:hover {
@@ -380,27 +404,29 @@ export class InterviewPanel {
 
         button#finishButton {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            background: transparent;
+            top: 24px;
+            right: 24px;
+            background: rgba(255,255,255,0.03);
             color: var(--lumina-text-secondary);
             border: 1px solid var(--lumina-border);
             padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(4px);
         }
 
         button#finishButton:hover {
-            border-color: var(--lumina-text-primary);
+            background: var(--lumina-surface);
             color: var(--lumina-text-primary);
+            border-color: rgba(255,255,255,0.15);
         }
 
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+            0% { box-shadow: 0 0 0 0 rgba(253, 164, 175, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(253, 164, 175, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(253, 164, 175, 0); }
         }
     </style>
 </head>

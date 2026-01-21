@@ -14,6 +14,10 @@ out/
 *.swo
 *~
 
+# VS Code extension test artifacts
+.vscode-test/
+**/.vscode-test/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -32,6 +36,9 @@ errorImages/
 # Project data
 .gdd/
 **/.gdd/
+
+# Local workspace clones
+lumina-vscode/
 
 # Claude settings
 .claude/

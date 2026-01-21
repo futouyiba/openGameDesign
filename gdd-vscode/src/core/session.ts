@@ -71,6 +71,11 @@ export class Session {
     await this.saveState();
   }
 
+  async setLlmSelection(selection: { providerId: string; modelId: string }) {
+    this.state.llmSelection = selection;
+    await this.saveState();
+  }
+
   getConversationHistory(): Array<{ role: 'ai' | 'user'; content: string }> {
     return this.state.conversationHistory || [];
   }
