@@ -1,7 +1,7 @@
 {
   "name": "gdd-assistant",
-  "displayName": "GDD Assistant",
-  "description": "AI-driven game design document writing assistant",
+  "displayName": "%gdd.displayName%",
+  "description": "%gdd.description%",
   "version": "0.2.1",
   "publisher": "hyperbola-games",
   "repository": {
@@ -22,35 +22,100 @@
     "commands": [
       {
         "command": "gdd.start",
-        "title": "GDD: Start New Document"
+        "title": "%gdd.command.start%",
+        "category": "%gdd.category%"
       },
       {
         "command": "gdd.sendMail",
-        "title": "GDD: Send Mail to Agent"
+        "title": "%gdd.command.sendMail%",
+        "category": "%gdd.category%"
       },
       {
         "command": "gdd.preview",
-        "title": "GDD: Preview Document"
+        "title": "%gdd.command.preview%",
+        "category": "%gdd.category%"
       },
       {
         "command": "gdd.addComment",
-        "title": "GDD: Add Comment"
+        "title": "%gdd.command.addComment%",
+        "category": "%gdd.category%"
       },
       {
         "command": "gdd.enableWriterMode",
-        "title": "GDD: Enable Writer Mode"
+        "title": "%gdd.command.enableWriterMode%",
+        "category": "%gdd.category%"
       },
       {
         "command": "gdd.disableWriterMode",
-        "title": "GDD: Disable Writer Mode"
+        "title": "%gdd.command.disableWriterMode%",
+        "category": "%gdd.category%"
+      },
+      {
+        "command": "gdd.startWriting",
+        "title": "%gdd.command.startWriting%",
+        "category": "%gdd.category%"
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "gdd.start"
+        },
+        {
+          "command": "gdd.startWriting"
+        },
+        {
+          "command": "gdd.preview"
+        },
+        {
+          "command": "gdd.sendMail"
+        },
+        {
+          "command": "gdd.enableWriterMode"
+        },
+        {
+          "command": "gdd.disableWriterMode"
+        }
+      ],
       "editor/context": [
         {
           "command": "gdd.addComment",
           "when": "editorHasSelection && resourceLangId == markdown",
           "group": "gdd@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "gdd.start",
+          "when": "view == gdd-progress",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gdd.startWriting",
+          "when": "view == gdd-progress",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gdd.preview",
+          "when": "view == gdd-progress",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gdd.sendMail",
+          "when": "view == gdd-mails",
+          "group": "navigation@1"
+        }
+      ],
+      "view/container/title": [
+        {
+          "command": "gdd.enableWriterMode",
+          "when": "viewContainer == gdd-sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gdd.disableWriterMode",
+          "when": "viewContainer == gdd-sidebar",
+          "group": "navigation@2"
         }
       ]
     },
@@ -63,22 +128,22 @@
       }
     ],
     "configuration": {
-      "title": "GDD Assistant",
+      "title": "%gdd.displayName%",
       "properties": {
         "gdd.apiKey": {
           "type": "string",
           "default": "",
-          "description": "Anthropic API Key for Claude"
+          "description": "%gdd.config.apiKey%"
         },
         "gdd.openaiApiKey": {
           "type": "string",
           "default": "",
-          "description": "OpenAI API Key for Whisper (语音转文字)"
+          "description": "%gdd.config.openaiApiKey%"
         },
         "gdd.model": {
           "type": "string",
           "default": "claude-sonnet-4-5-20250929",
-          "description": "Claude model to use"
+          "description": "%gdd.config.model%"
         }
       }
     },
@@ -86,8 +151,8 @@
       "activitybar": [
         {
           "id": "gdd-sidebar",
-          "title": "GDD Assistant",
-          "icon": "resources/icon.svg"
+          "title": "%gdd.viewContainer.title%",
+          "icon": "resources/gdd-icon.svg"
         }
       ]
     },
@@ -95,14 +160,24 @@
       "gdd-sidebar": [
         {
           "id": "gdd-progress",
-          "name": "Progress"
+          "name": "%gdd.view.progress%"
         },
         {
           "id": "gdd-mails",
-          "name": "Mails"
+          "name": "%gdd.view.mails%"
         }
       ]
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "gdd-progress",
+        "contents": "%gdd.viewsWelcome.progress%"
+      },
+      {
+        "view": "gdd-mails",
+        "contents": "%gdd.viewsWelcome.mails%"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -112,9 +187,12 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.80.0",
+    "@vscode/test-electron": "^2.4.0",
     "@vscode/vsce": "^3.7.1",
+    "mocha": "^10.2.0",
     "typescript": "^5.3.0"
   },
   "dependencies": {

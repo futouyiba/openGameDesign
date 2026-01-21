@@ -64,31 +64,93 @@ export class PreviewPanel {
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <style>
+        :root {
+            --lumina-bg: #18181B;
+            --lumina-text-primary: #F4F4F5;
+            --lumina-text-secondary: #A1A1AA;
+            --lumina-border: rgba(255, 255, 255, 0.08);
+            --font-display: 'Cabinet Grotesk', system-ui, sans-serif;
+            --font-body: 'General Sans', system-ui, sans-serif;
+            --font-mono: 'IA Writer Duo', 'Input Sans', monospace;
+        }
+
         body {
-            padding: 20px;
-            max-width: 900px;
+            padding: 60px 40px;
+            max-width: 800px;
             margin: 0 auto;
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
-            background: var(--vscode-editor-background);
+            font-family: var(--font-body);
+            color: var(--lumina-text-primary);
+            background: var(--lumina-bg);
+            line-height: 1.8;
+            -webkit-font-smoothing: antialiased;
         }
-        h1, h2, h3 { color: var(--vscode-editor-foreground); }
+
+        h1, h2, h3, h4 {
+            font-family: var(--font-display);
+            color: var(--lumina-text-primary);
+            font-weight: 600;
+            margin-top: 2.5em;
+            margin-bottom: 1em;
+            letter-spacing: -0.02em;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            border-bottom: 1px solid var(--lumina-border);
+            padding-bottom: 0.5em;
+        }
+
+        h2 { font-size: 1.75rem; }
+
+        p {
+            margin-bottom: 1.5em;
+            color: rgba(244, 244, 245, 0.9);
+        }
+
         code {
-            background: var(--vscode-textCodeBlock-background);
+            font-family: var(--font-mono);
+            background: rgba(255, 255, 255, 0.06);
+            color: #A5F3FC;
             padding: 2px 6px;
-            border-radius: 3px;
+            border-radius: 4px;
+            font-size: 0.9em;
         }
+
         pre {
-            background: var(--vscode-textCodeBlock-background);
-            padding: 10px;
-            border-radius: 5px;
-            overflow-x: auto;
-        }
-        .mermaid {
-            background: white;
+            background: #121214;
             padding: 20px;
-            border-radius: 5px;
-            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid var(--lumina-border);
+            overflow-x: auto;
+            margin: 2em 0;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            color: var(--lumina-text-secondary);
+        }
+
+        blockquote {
+            border-left: 2px solid var(--lumina-text-secondary);
+            margin: 2em 0;
+            padding-left: 1.5em;
+            color: var(--lumina-text-secondary);
+            font-style: italic;
+        }
+
+        .mermaid {
+            background: transparent;
+            padding: 24px;
+            border: 1px solid var(--lumina-border);
+            border-radius: 8px;
+            margin: 2em 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .mermaid text {
+            fill: #F4F4F5 !important;
         }
     </style>
 </head>

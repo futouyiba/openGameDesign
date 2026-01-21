@@ -1,0 +1,20 @@
+{
+  "gdd.displayName": "GDD Assistant",
+  "gdd.description": "AI-assisted documentation engine for game design docs",
+  "gdd.category": "GDD",
+  "gdd.viewContainer.title": "GDD",
+  "gdd.view.progress": "Progress",
+  "gdd.view.mails": "Mails",
+  "gdd.command.start": "GDD: Start New Document",
+  "gdd.command.sendMail": "GDD: Send Mail to Agent",
+  "gdd.command.preview": "GDD: Preview Document",
+  "gdd.command.addComment": "GDD: Add Comment",
+  "gdd.command.enableWriterMode": "GDD: Enable Writer Mode",
+  "gdd.command.disableWriterMode": "GDD: Disable Writer Mode",
+  "gdd.command.startWriting": "GDD: Generate Draft + Review",
+  "gdd.config.apiKey": "Anthropic API Key for Claude",
+  "gdd.config.openaiApiKey": "OpenAI API Key for Whisper (speech-to-text)",
+  "gdd.config.model": "Claude model to use",
+  "gdd.viewsWelcome.progress": "# GDD Workflow\n\n- [Start Interview](command:gdd.start)\n- [Generate Draft + Review](command:gdd.startWriting)\n- [Preview Document](command:gdd.preview)\n\n**Tips**\n- Start with the interview to capture assumptions.\n- Writing + review will generate the first full draft.\n",
+  "gdd.viewsWelcome.mails": "# GDD Mailbox\n\n- [Send Mail to Agent](command:gdd.sendMail)\n\n**Tips**\n- Use mail to capture follow-ups and deferred decisions.\n- Add comments inline in Markdown with **GDD: Add Comment**.\n- Link mail items to the current decision log.\n"
+}
