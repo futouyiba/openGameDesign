@@ -3,7 +3,7 @@
   "lsp": {
     "typescript": {
       "command": [
-        "E:\\DocsHDD\\openGameDesign\\typescript-language-server.cmd",
+        "e:\\claudeCode\\typescript-language-server.cmd",
         "--stdio"
       ]
     }

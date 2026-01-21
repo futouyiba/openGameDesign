@@ -5,7 +5,7 @@
     "moduleResolution": "node",
     "types": [
       "node",
-      "webdriverio/async",
+      "@wdio/globals/types",
       "@wdio/mocha-framework",
       "expect-webdriverio",
       "wdio-vscode-service"
@@ -14,5 +14,7 @@
     "skipLibCheck": true,
     "strict": true
   },
-  "include": ["./**/*.ts"]
+  "include": [
+    "./**/*.ts"
+  ]
 }

@@ -18,7 +18,7 @@ export async function getGlobalLlmSelection(
 
 export async function setGlobalLlmSelection(
   context: vscode.ExtensionContext,
-  selection: LlmSelection
+  selection: LlmSelection | undefined
 ): Promise<void> {
   await context.globalState.update(LLM_SELECTION_GLOBAL_KEY, selection);
 }
@@ -26,14 +26,15 @@ export async function setGlobalLlmSelection(
 export async function resolveLlmSelection(
   context: vscode.ExtensionContext,
   session?: Session
-): Promise<LlmSelection> {
+): Promise<LlmSelection | undefined> {
   const existing = session
     ? session.getState().llmSelection
     : await getGlobalLlmSelection(context);
 
   if (existing?.providerId && existing?.modelId) {
-    await ensureProviderCredentials(context, existing.providerId);
-    return existing;
+    if (await ensureProviderCredentials(context, existing.providerId)) {
+      return existing;
+    }
   }
 
   const items: ModelPickItem[] = MODEL_CHOICES.map(choice => ({
@@ -49,27 +50,29 @@ export async function resolveLlmSelection(
   });
 
   if (!selection) {
-    throw new Error('需要选择模型才能继续');
+    return undefined;
   }
 
-  let modelId = selection.model.modelId;
+  let finalModelId = selection.model.modelId;
   if (selection.model.requiresModelId) {
-    modelId = await vscode.window.showInputBox({
+    const inputId = await vscode.window.showInputBox({
       prompt: '请输入模型 ID',
       ignoreFocusOut: true
     });
-  }
-
-  if (!modelId) {
-    throw new Error('模型 ID 不能为空');
+    if (!inputId) {
+      return undefined;
+    }
+    finalModelId = inputId;
   }
 
   const chosen: LlmSelection = {
     providerId: selection.model.providerId,
-    modelId
+    modelId: finalModelId!
   };
 
-  await ensureProviderCredentials(context, chosen.providerId);
+  if (!(await ensureProviderCredentials(context, chosen.providerId))) {
+    return undefined;
+  }
 
   if (session) {
     await session.setLlmSelection(chosen);
@@ -90,17 +93,22 @@ export function getDefaultSelection(): LlmSelection {
 async function ensureProviderCredentials(
   context: vscode.ExtensionContext,
   providerId: string
-): Promise<void> {
+): Promise<boolean> {
   const provider = getProviderDefinition(providerId);
 
-  if (provider.auth === 'codex-oauth') {
-    await ensureCodexOAuth(context);
-    return;
+  try {
+    if (provider.auth === 'codex-oauth') {
+      await ensureCodexOAuth(context);
+      return true;
+    }
+
+    const prompt = provider.id.startsWith('opencode-zen')
+      ? '请输入 OpenCode Zen API Key (https://opencode.ai/auth)'
+      : `请输入 ${provider.label} API Key`;
+
+    await ensureApiKey(context, provider.id, prompt);
+    return true;
+  } catch (err) {
+    return false;
   }
-
-  const prompt = provider.id.startsWith('opencode-zen')
-    ? '请输入 OpenCode Zen API Key (https://opencode.ai/auth)'
-    : `请输入 ${provider.label} API Key`;
-
-  await ensureApiKey(context, provider.id, prompt);
 }

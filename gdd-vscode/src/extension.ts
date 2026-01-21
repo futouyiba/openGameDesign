@@ -9,6 +9,7 @@ import { resolveLlmSelection, getGlobalLlmSelection } from './llm/selection';
 import { WriterAgent, setProgressProvider } from './agents/writer';
 import { ReviewerAgent } from './agents/reviewer';
 import { CommentController } from './comments/CommentController';
+import * as path from 'path';
 
 let progressProvider: ProgressProvider;
 let mailProvider: MailProvider;
@@ -75,7 +76,8 @@ export async function activate(context: vscode.ExtensionContext) {
         // 如果已经在访谈阶段且有未完成的访谈，直接打开访谈面板
         if (state.phase === 'interview') {
             progressProvider.updatePhase('interview', 'in_progress');
-            await resolveLlmSelection(context, session);
+            const selection = await resolveLlmSelection(context, session);
+            if (!selection) return;
             await updateStatusBar(context);
             InterviewPanel.render(context);
             return;
@@ -94,7 +96,8 @@ export async function activate(context: vscode.ExtensionContext) {
         state.outputDir = outputDir;
         await session.saveState();
 
-        await resolveLlmSelection(context, session);
+        const selection = await resolveLlmSelection(context, session);
+        if (!selection) return;
         await updateStatusBar(context);
         progressProvider.updatePhase('interview', 'in_progress');
         InterviewPanel.render(context);
@@ -113,6 +116,10 @@ export async function activate(context: vscode.ExtensionContext) {
         await session.init();
 
         const selection = await resolveLlmSelection(context, session);
+        if (!selection) {
+            progressProvider.updatePhase('writing', 'pending'); // Reset phase if cancelled
+            return;
+        }
         await updateStatusBar(context);
         const ai = new AIClient(context, selection);
         const writer = new WriterAgent(session, ai);
@@ -125,7 +132,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // 审阅阶段
         const state = session.getState();
         const outputDir = state.outputDir || 'docs';
-        const docPath = require('path').join(workspaceRoot, outputDir, 'game-design-document.md');
+        const docPath = path.join(workspaceRoot, outputDir, 'game-design-document.md');
         const reviewer = new ReviewerAgent(session, ai);
 
         let iteration = 0;
@@ -239,7 +246,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const state = session.getState();
         const outputDir = state.outputDir || 'docs';
 
-        const docPath = require('path').join(workspaceRoot, outputDir, 'game-design-document.md');
+        const docPath = path.join(workspaceRoot, outputDir, 'game-design-document.md');
         PreviewPanel.render(context.extensionUri, docPath);
     });
 
@@ -359,8 +366,10 @@ export async function activate(context: vscode.ExtensionContext) {
         enableWriterModeCommand,
         disableWriterModeCommand,
         vscode.commands.registerCommand('gdd.switchModel', async () => {
-            await resolveLlmSelection(context);
-            await updateStatusBar(context);
+            const selection = await resolveLlmSelection(context);
+            if (selection) {
+                await updateStatusBar(context);
+            }
         })
     );
 }

@@ -12,6 +12,7 @@
   "gdd.command.enableWriterMode": "GDD: Enable Writer Mode",
   "gdd.command.disableWriterMode": "GDD: Disable Writer Mode",
   "gdd.command.startWriting": "GDD: Generate Draft + Review",
+  "gdd.command.switchModel": "GDD: Switch LLM Model",
   "gdd.config.apiKey": "Anthropic API Key for Claude",
   "gdd.config.openaiApiKey": "OpenAI API Key for Whisper (speech-to-text)",
   "gdd.config.model": "Claude model to use",

@@ -11,6 +11,8 @@ const logLevel = (process.env.WDIO_LOG_LEVEL ?? 'info') as Options.Testrunner['l
 export const config: Options.Testrunner = {
   runner: 'local',
   specs: [
+    path.join(__dirname, 'specs', 'command-palette.e2e.ts'),
+    path.join(__dirname, 'specs', 'writer-mode.e2e.ts'),
     path.join(__dirname, 'specs', 'ui.e2e.ts')
   ],
 
@@ -52,7 +54,6 @@ export const config: Options.Testrunner = {
           'update.mode': 'none',
           'workbench.enableExperiments': false,
           'workbench.startupEditor': 'none',
-          'workbench.tips.enabled': false,
           'workbench.welcomePage.walkthroughs.openOnInstall': false
         }
       }

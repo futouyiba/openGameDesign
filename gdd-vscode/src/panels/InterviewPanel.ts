@@ -34,7 +34,9 @@ export class InterviewPanel {
                     case 'init':
                         await this.session.init();
                         const selection = await resolveLlmSelection(this.context, this.session);
-                        this.ai.updateSelection(selection);
+                        if (selection) {
+                            this.ai.updateSelection(selection);
+                        }
                         await this.initializeInterview();
                         return;
                     case 'answer':
@@ -127,7 +129,7 @@ export class InterviewPanel {
 
     private async transcribeAudio(audioBuffer: Buffer): Promise<string> {
         const apiKey = vscode.workspace.getConfiguration('gdd').get<string>('openaiApiKey')
-                    || process.env.OPENAI_API_KEY;
+            || process.env.OPENAI_API_KEY;
 
         if (!apiKey) {
             throw new Error('请在设置中配置 OpenAI API Key (gdd.openaiApiKey)');

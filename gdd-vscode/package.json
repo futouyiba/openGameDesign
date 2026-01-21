@@ -54,6 +54,11 @@
         "command": "gdd.startWriting",
         "title": "%gdd.command.startWriting%",
         "category": "%gdd.category%"
+      },
+      {
+        "command": "gdd.switchModel",
+        "title": "%gdd.command.switchModel%",
+        "category": "%gdd.category%"
       }
     ],
     "menus": {
@@ -75,6 +80,9 @@
         },
         {
           "command": "gdd.disableWriterMode"
+        },
+        {
+          "command": "gdd.switchModel"
         }
       ],
       "editor/context": [

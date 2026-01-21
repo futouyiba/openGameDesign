@@ -10,16 +10,16 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 
 export class AIClient {
   private context: vscode.ExtensionContext;
-  private selection: LlmSelection;
+  private selection: LlmSelection | undefined;
   private openaiClient: OpenAI | null = null;
   private anthropicClient: Anthropic | null = null;
 
-  constructor(context: vscode.ExtensionContext, selection: LlmSelection) {
+  constructor(context: vscode.ExtensionContext, selection?: LlmSelection) {
     this.context = context;
     this.selection = selection;
   }
 
-  updateSelection(selection: LlmSelection) {
+  updateSelection(selection: LlmSelection | undefined) {
     this.selection = selection;
     this.openaiClient = null;
     this.anthropicClient = null;
@@ -32,21 +32,24 @@ export class AIClient {
   ) {
     for (let i = 0; i < retries; i++) {
       try {
+        if (!this.selection) {
+          throw new Error('LLM model not selected');
+        }
         const provider = getProviderDefinition(this.selection.providerId);
 
         if (provider.transport === 'anthropic') {
-          return await this.callAnthropic(messages, systemPrompt, provider.baseUrl);
+          return await this.callAnthropic(this.selection, messages, systemPrompt, provider.baseUrl);
         }
 
         if (provider.transport === 'openai-compatible') {
-          return await this.callOpenAICompatible(messages, systemPrompt, provider.baseUrl);
+          return await this.callOpenAICompatible(this.selection, messages, systemPrompt, provider.baseUrl);
         }
 
         if (provider.transport === 'codex') {
           if (!provider.endpoint) {
             throw new Error('Codex endpoint is not configured');
           }
-          return await this.callCodex(messages, systemPrompt, provider.endpoint);
+          return await this.callCodex(this.selection, messages, systemPrompt, provider.endpoint);
         }
 
         throw new Error(`Unsupported provider transport: ${provider.transport}`);
@@ -63,11 +66,12 @@ export class AIClient {
   }
 
   private async callAnthropic(
+    selection: LlmSelection,
     messages: { role: 'user' | 'assistant'; content: string }[],
     systemPrompt: string | undefined,
     baseUrl?: string
   ): Promise<string> {
-    const apiKey = await ensureApiKey(this.context, this.selection.providerId, '请输入 OpenCode Zen API Key (https://opencode.ai/auth)');
+    const apiKey = await ensureApiKey(this.context, selection.providerId, '请输入 OpenCode Zen API Key (https://opencode.ai/auth)');
 
     if (!this.anthropicClient) {
       this.anthropicClient = new Anthropic({
@@ -77,7 +81,7 @@ export class AIClient {
     }
 
     const response = await this.anthropicClient.messages.create({
-      model: this.selection.modelId,
+      model: selection.modelId,
       max_tokens: DEFAULT_MAX_OUTPUT_TOKENS,
       system: systemPrompt,
       messages
@@ -91,11 +95,12 @@ export class AIClient {
   }
 
   private async callOpenAICompatible(
+    selection: LlmSelection,
     messages: { role: 'user' | 'assistant'; content: string }[],
     systemPrompt: string | undefined,
     baseUrl?: string
   ): Promise<string> {
-    const provider = getProviderDefinition(this.selection.providerId);
+    const provider = getProviderDefinition(selection.providerId);
     const prompt = provider.id.startsWith('opencode-zen')
       ? '请输入 OpenCode Zen API Key (https://opencode.ai/auth)'
       : `请输入 ${provider.label} API Key`;
@@ -117,7 +122,7 @@ export class AIClient {
     }
 
     const response = await this.openaiClient.chat.completions.create({
-      model: this.selection.modelId,
+      model: selection.modelId,
       messages: openaiMessages,
       max_tokens: DEFAULT_MAX_OUTPUT_TOKENS
     });
@@ -126,6 +131,7 @@ export class AIClient {
   }
 
   private async callCodex(
+    selection: LlmSelection,
     messages: { role: 'user' | 'assistant'; content: string }[],
     systemPrompt: string | undefined,
     endpoint: string
@@ -149,13 +155,13 @@ export class AIClient {
       headers['ChatGPT-Account-Id'] = tokens.accountId;
     }
 
-    log('Calling Codex API', { endpoint, model: this.selection.modelId });
+    log('Calling Codex API', { endpoint, model: selection.modelId });
 
     const response = await fetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: this.selection.modelId,
+        model: selection.modelId,
         messages: openaiMessages,
         max_tokens: DEFAULT_MAX_OUTPUT_TOKENS
       })

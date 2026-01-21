@@ -71,7 +71,7 @@ export class Session {
     await this.saveState();
   }
 
-  async setLlmSelection(selection: { providerId: string; modelId: string }) {
+  async setLlmSelection(selection: { providerId: string; modelId: string } | undefined) {
     this.state.llmSelection = selection;
     await this.saveState();
   }
