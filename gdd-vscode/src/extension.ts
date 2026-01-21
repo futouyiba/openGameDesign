@@ -200,6 +200,49 @@ export function activate(context: vscode.ExtensionContext) {
         PreviewPanel.render(context.extensionUri, docPath);
     });
 
+    const enableWriterModeCommand = vscode.commands.registerCommand('gdd.enableWriterMode', async () => {
+        const config = vscode.workspace.getConfiguration();
+        
+        // Hide UI elements
+        await config.update('workbench.activityBar.visible', false, vscode.ConfigurationTarget.Global);
+        await config.update('workbench.statusBar.visible', false, vscode.ConfigurationTarget.Global);
+        await config.update('editor.minimap.enabled', false, vscode.ConfigurationTarget.Global);
+        await config.update('breadcrumbs.enabled', false, vscode.ConfigurationTarget.Global);
+        
+        // Apply Color Theme customization
+        const luminaTheme = {
+            "sideBar.background": "#18181B",
+            "editor.background": "#18181B",
+            "activityBar.background": "#18181B",
+            "tab.activeBackground": "#18181B",
+            "tab.border": "transparent",
+            "editorGroupHeader.tabsBackground": "#18181B",
+            "statusBar.background": "#18181B",
+            "titleBar.activeBackground": "#18181B",
+            "sideBar.border": "#27272A",
+            "sideBarSectionHeader.background": "#18181B"
+        };
+        
+        await config.update('workbench.colorCustomizations', luminaTheme, vscode.ConfigurationTarget.Global);
+        
+        vscode.window.showInformationMessage('Writer Mode Enabled: Focused environment active.');
+    });
+
+    const disableWriterModeCommand = vscode.commands.registerCommand('gdd.disableWriterMode', async () => {
+        const config = vscode.workspace.getConfiguration();
+        
+        // Restore UI elements (reset to undefined to use default/user settings)
+        await config.update('workbench.activityBar.visible', undefined, vscode.ConfigurationTarget.Global);
+        await config.update('workbench.statusBar.visible', undefined, vscode.ConfigurationTarget.Global);
+        await config.update('editor.minimap.enabled', undefined, vscode.ConfigurationTarget.Global);
+        await config.update('breadcrumbs.enabled', undefined, vscode.ConfigurationTarget.Global);
+        
+        // Remove Color Theme customization
+        await config.update('workbench.colorCustomizations', undefined, vscode.ConfigurationTarget.Global);
+        
+        vscode.window.showInformationMessage('Writer Mode Disabled: Standard VS Code environment restored.');
+    });
+
     // 注册侧边栏视图
     vscode.window.registerTreeDataProvider('gdd-progress', progressProvider);
     vscode.window.registerTreeDataProvider('gdd-mails', mailProvider);
@@ -209,7 +252,9 @@ export function activate(context: vscode.ExtensionContext) {
         startWritingCommand,
         sendMailCommand,
         addCommentCommand,
-        previewCommand
+        previewCommand,
+        enableWriterModeCommand,
+        disableWriterModeCommand
     );
 }
 

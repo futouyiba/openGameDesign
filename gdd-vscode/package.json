@@ -35,6 +35,14 @@
       {
         "command": "gdd.addComment",
         "title": "GDD: Add Comment"
+      },
+      {
+        "command": "gdd.enableWriterMode",
+        "title": "GDD: Enable Writer Mode"
+      },
+      {
+        "command": "gdd.disableWriterMode",
+        "title": "GDD: Disable Writer Mode"
       }
     ],
     "menus": {

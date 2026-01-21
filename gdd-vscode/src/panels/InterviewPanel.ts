@@ -223,100 +223,201 @@ export class InterviewPanel {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GDD 访谈</title>
     <style>
+        :root {
+            /* Lumina Palette - Graphite & Paper */
+            --lumina-bg: #18181B;
+            --lumina-surface: #1C1C1F;
+            --lumina-border: rgba(255, 255, 255, 0.08);
+            --lumina-text-primary: #F4F4F5;
+            --lumina-text-secondary: #A1A1AA;
+            --lumina-accent: #A5F3FC;
+            --lumina-user-bg: #27272A;
+            --lumina-ai-bg: transparent;
+            
+            /* Typography */
+            --font-interface: 'General Sans', system-ui, -apple-system, sans-serif;
+            --font-prose: 'IA Writer Duo', 'Input Sans', 'Menlo', 'Monaco', monospace;
+        }
+
         body {
-            padding: 20px;
-            padding-bottom: 100px;
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
+            padding: 40px;
+            padding-bottom: 120px;
+            font-family: var(--font-interface);
+            background-color: var(--lumina-bg);
+            color: var(--lumina-text-primary);
+            line-height: 1.6;
+            margin: 0;
+            overflow-x: hidden;
         }
+
         .chat-container {
-            max-width: 800px;
+            max-width: 900px; /* Wider for editorial feel */
             margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
         }
+
         .message {
-            margin: 15px 0;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 1.5rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            max-width: 100%;
         }
+
         .ai-message {
-            background: var(--vscode-editor-background);
-            border-left: 3px solid var(--vscode-activityBarBadge-background);
+            background: var(--lumina-ai-bg);
+            border-left: none; /* Removed hard border */
+            color: var(--lumina-text-primary);
         }
+
         .user-message {
-            background: var(--vscode-input-background);
-            border-left: 3px solid var(--vscode-button-background);
+            background: var(--lumina-user-bg);
+            border-left: none; /* Removed hard border */
+            align-self: flex-start;
+            width: 100%;
+            box-sizing: border-box;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* Soft shadow */
         }
+
+        .user-message strong, .ai-message strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--lumina-text-secondary);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
         .input-area {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            padding: 20px;
-            background: var(--vscode-editor-background);
-            border-top: 1px solid var(--vscode-panel-border);
-        }
-        .input-container {
+            padding: 24px;
+            background: linear-gradient(to top, var(--lumina-bg) 90%, transparent); /* Fade out top */
             display: flex;
-            gap: 10px;
-            align-items: flex-start;
+            justify-content: center;
         }
+
+        .input-wrapper {
+            max-width: 900px;
+            width: 100%;
+            position: relative;
+            background: var(--lumina-bg);
+            border: 1px solid var(--lumina-border);
+            border-radius: 12px;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.3);
+            padding: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
         textarea {
             flex: 1;
-            min-height: 80px;
-            padding: 10px;
-            background: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 3px;
-            resize: vertical;
-            font-family: var(--vscode-font-family);
-        }
-        .mic-button {
-            width: 40px;
-            height: 40px;
-            padding: 0;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
+            min-height: 24px;
+            max-height: 200px;
+            padding: 8px;
+            background: transparent;
+            color: var(--lumina-text-primary);
             border: none;
-            border-radius: 50%;
+            resize: none;
+            font-family: var(--font-prose);
+            font-size: 1rem;
+            outline: none;
+        }
+
+        textarea::placeholder {
+            color: var(--lumina-text-secondary);
+            opacity: 0.5;
+        }
+
+        .buttons-area {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mic-button {
+            width: 36px;
+            height: 36px;
+            background: transparent;
+            color: var(--lumina-text-secondary);
+            border: 1px solid var(--lumina-border);
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: all 0.2s;
         }
+
+        .mic-button:hover {
+            background: var(--lumina-user-bg);
+            color: var(--lumina-text-primary);
+        }
+
         .mic-button.recording {
-            background: #f14c4c;
-            animation: pulse 1.5s infinite;
+            color: #ef4444;
+            border-color: #ef4444;
+            animation: pulse 2s infinite;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-        button {
-            padding: 10px 20px;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
+
+        button#sendButton {
+            padding: 8px 16px;
+            background: var(--lumina-text-primary);
+            color: var(--lumina-bg);
             border: none;
-            border-radius: 3px;
+            border-radius: 8px;
+            font-weight: 600;
             cursor: pointer;
+            height: 36px;
         }
-        button:hover {
-            background: var(--vscode-button-hoverBackground);
+
+        button#sendButton:hover {
+            opacity: 0.9;
+        }
+
+        button#finishButton {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: transparent;
+            color: var(--lumina-text-secondary);
+            border: 1px solid var(--lumina-border);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button#finishButton:hover {
+            border-color: var(--lumina-text-primary);
+            color: var(--lumina-text-primary);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
     </style>
 </head>
 <body>
+    <button id="finishButton">完成访谈 / Finish Interview</button>
+
     <div class="chat-container" id="chat"></div>
 
     <div class="input-area">
-        <div class="input-container">
-            <button class="mic-button" id="micButton" title="语音输入 (Whisper)">🎤</button>
-            <textarea id="answer" placeholder="输入你的回答...&#10;支持多行输入，Shift+Enter换行，Enter发送"></textarea>
-        </div>
-        <div style="margin-top: 10px;">
-            <button id="sendButton">发送</button>
-            <button id="finishButton">完成访谈</button>
+        <div class="input-wrapper">
+            <button class="mic-button" id="micButton" title="语音输入 (Whisper)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+            </button>
+            <textarea id="answer" placeholder="Type your answer... (Shift+Enter for new line)"></textarea>
+            <div class="buttons-area">
+                <button id="sendButton">Send</button>
+            </div>
         </div>
     </div>
 
@@ -335,7 +436,9 @@ export class InterviewPanel {
                     displayUserMessage(message.text);
                     break;
                 case 'transcription':
-                    document.getElementById('answer').value += message.text;
+                    const textarea = document.getElementById('answer');
+                    textarea.value += message.text;
+                    textarea.scrollTop = textarea.scrollHeight; // Auto-scroll to bottom
                     break;
             }
         });
@@ -344,18 +447,18 @@ export class InterviewPanel {
             const chat = document.getElementById('chat');
             const aiMsg = document.createElement('div');
             aiMsg.className = 'message ai-message';
-            aiMsg.innerHTML = '<strong>AI:</strong> ' + text;
+            aiMsg.innerHTML = '<strong>AI</strong>' + text; // Removed "AI:" prefix for cleaner look
             chat.appendChild(aiMsg);
-            setTimeout(() => chat.scrollTop = chat.scrollHeight, 100);
+            setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100);
         }
 
         function displayUserMessage(text) {
             const chat = document.getElementById('chat');
             const userMsg = document.createElement('div');
             userMsg.className = 'message user-message';
-            userMsg.innerHTML = '<strong>你:</strong> ' + text.replace(/\n/g, '<br>');
+            userMsg.innerHTML = '<strong>You</strong>' + text.replace(/\n/g, '<br>');
             chat.appendChild(userMsg);
-            setTimeout(() => chat.scrollTop = chat.scrollHeight, 100);
+            setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100);
         }
 
         function sendAnswer() {
@@ -363,11 +466,7 @@ export class InterviewPanel {
             const text = input.value.trim();
             if (!text) return;
 
-            const chat = document.getElementById('chat');
-            const userMsg = document.createElement('div');
-            userMsg.className = 'message user-message';
-            userMsg.innerHTML = '<strong>你:</strong> ' + text.replace(/\n/g, '<br>');
-            chat.appendChild(userMsg);
+            displayUserMessage(text); // Optimistic UI update
 
             vscode.postMessage({
                 command: 'answer',
@@ -375,8 +474,16 @@ export class InterviewPanel {
             });
 
             input.value = '';
-            setTimeout(() => chat.scrollTop = chat.scrollHeight, 100);
+            // Reset height
+            input.style.height = 'auto'; 
         }
+
+        // Auto-resize textarea
+        const textarea = document.getElementById('answer');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
 
         async function toggleRecording() {
             const micButton = document.getElementById('micButton');
@@ -410,7 +517,7 @@ export class InterviewPanel {
                     mediaRecorder.start();
                     micButton.classList.add('recording');
                 } catch (err) {
-                    alert('无法访问麦克风: ' + err.message);
+                    alert('Microphone access denied: ' + err.message);
                 }
             }
         }
@@ -432,7 +539,7 @@ export class InterviewPanel {
         document.getElementById('finishButton').addEventListener('click', finishInterview);
         document.getElementById('micButton').addEventListener('click', toggleRecording);
 
-        // 初始化
+        // Init
         vscode.postMessage({ command: 'init' });
     </script>
 </body>
