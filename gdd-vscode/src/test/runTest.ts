@@ -21,6 +21,9 @@ async function main() {
             ?? fs.mkdtempSync(path.join(os.tmpdir(), 'gdd-vscode-user-data-'));
         const extensionsDir = readEnvValue('VSCODE_TEST_EXTENSIONS_DIR')
             ?? fs.mkdtempSync(path.join(os.tmpdir(), 'gdd-vscode-extensions-'));
+        const workspaceDir = readEnvValue('VSCODE_TEST_WORKSPACE')
+            ?? fs.mkdtempSync(path.join(os.tmpdir(), 'gdd-vscode-workspace-'));
+        const workspaceIsTemp = !readEnvValue('VSCODE_TEST_WORKSPACE');
 
         const launchArgs: string[] = [
             `--user-data-dir=${userDataDir}`,
@@ -32,10 +35,14 @@ async function main() {
             launchArgs.push('--profile', profileName);
         }
 
+        launchArgs.push(workspaceDir);
+
         process.env.GDD_TEST_USER_DATA_DIR = userDataDir;
         process.env.GDD_TEST_EXTENSIONS_DIR = extensionsDir;
         process.env.GDD_TEST_PROFILE = profileName ?? '__none__';
         process.env.GDD_TEST_VERSION = version;
+        process.env.GDD_TEST_WORKSPACE = workspaceDir;
+        process.env.GDD_TEST_WORKSPACE_TEMP = workspaceIsTemp ? 'true' : 'false';
 
         await runTests({
             extensionDevelopmentPath,

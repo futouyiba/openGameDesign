@@ -5,7 +5,7 @@ import { ProgressProvider } from './providers/ProgressProvider';
 import { MailProvider } from './providers/MailProvider';
 import { Session } from './core/session';
 import { AIClient } from './utils/ai';
-import { resolveLlmSelection } from './llm/selection';
+import { resolveLlmSelection, getGlobalLlmSelection } from './llm/selection';
 import { WriterAgent, setProgressProvider } from './agents/writer';
 import { ReviewerAgent } from './agents/reviewer';
 import { CommentController } from './comments/CommentController';
@@ -13,6 +13,7 @@ import { CommentController } from './comments/CommentController';
 let progressProvider: ProgressProvider;
 let mailProvider: MailProvider;
 let commentController: CommentController | undefined;
+let statusBarItem: vscode.StatusBarItem;
 
 const writerModeSnapshotKey = 'gdd.writerMode.snapshot';
 const writerModeEnabledKey = 'gdd.writerMode.enabled';
@@ -37,8 +38,20 @@ function isSettingRegistered(config: vscode.WorkspaceConfiguration, key: string)
     return config.inspect(key) !== undefined;
 }
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     console.log('GDD Assistant is now active');
+
+    // 初始化状态栏
+    console.log('Initializing GDD Status Bar');
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    statusBarItem.command = 'gdd.switchModel';
+    statusBarItem.text = '$(sparkle) GDD: Initializing...';
+    context.subscriptions.push(statusBarItem);
+    statusBarItem.show();
+
+    // 异步更新状态栏内容，不阻塞主线程
+    updateStatusBar(context).catch(err => console.error('Failed to update status bar:', err));
+    console.log('GDD Status Bar shown');
 
     // 初始化providers
     progressProvider = new ProgressProvider();
@@ -63,6 +76,7 @@ export function activate(context: vscode.ExtensionContext) {
         if (state.phase === 'interview') {
             progressProvider.updatePhase('interview', 'in_progress');
             await resolveLlmSelection(context, session);
+            await updateStatusBar(context);
             InterviewPanel.render(context);
             return;
         }
@@ -81,6 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
         await session.saveState();
 
         await resolveLlmSelection(context, session);
+        await updateStatusBar(context);
         progressProvider.updatePhase('interview', 'in_progress');
         InterviewPanel.render(context);
     });
@@ -98,6 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
         await session.init();
 
         const selection = await resolveLlmSelection(context, session);
+        await updateStatusBar(context);
         const ai = new AIClient(context, selection);
         const writer = new WriterAgent(session, ai);
 
@@ -341,8 +357,19 @@ export function activate(context: vscode.ExtensionContext) {
         addCommentCommand,
         previewCommand,
         enableWriterModeCommand,
-        disableWriterModeCommand
+        disableWriterModeCommand,
+        vscode.commands.registerCommand('gdd.switchModel', async () => {
+            await resolveLlmSelection(context);
+            await updateStatusBar(context);
+        })
     );
+}
+
+async function updateStatusBar(context: vscode.ExtensionContext) {
+    const selection = await getGlobalLlmSelection(context);
+    const modelLabel = selection ? selection.modelId : 'Select LLM';
+    statusBarItem.text = `$(sparkle) GDD: ${modelLabel}`;
+    statusBarItem.tooltip = 'Click to switch LLM model';
 }
 
 export function deactivate() {

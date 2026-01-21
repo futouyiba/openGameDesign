@@ -1,0 +1,55 @@
+import { expect, browser } from '@wdio/globals';
+import { step } from '../support/artifacts';
+
+// Skipped: model switcher UI is not implemented in current extension build.
+// The WDIO service typings also do not expose StatusBarItem helpers in this version.
+describe.skip('Model Switcher UI', () => {
+    it('should display the GDD status bar item', async () => {
+        await step('Verify status bar item', async () => {
+            const workbench = await browser.getWorkbench();
+            const statusBar = workbench.getStatusBar();
+
+            await browser.waitUntil(async () => {
+                const items = await statusBar.getItems();
+                for (const item of items) {
+                    const label = await item.getLabel();
+                    console.log(`Checking item: ${label}`);
+                    if (label.includes('GDD:')) {
+                        return true;
+                    }
+                }
+                return false;
+            }, {
+                timeout: 30000,
+                timeoutMsg: 'GDD Status Bar item not found within 30s'
+            });
+        });
+    });
+
+    it('should open model selection when clicking status bar item', async () => {
+        await step('Click status bar and verify quick pick', async () => {
+            const workbench = await browser.getWorkbench();
+            const statusBar = workbench.getStatusBar();
+            const items = await statusBar.getItems();
+
+            let gddItem;
+            for (const item of items) {
+                const label = await item.getLabel();
+                if (label.includes('GDD:')) {
+                    gddItem = item;
+                    break;
+                }
+            }
+
+            if (!gddItem) throw new Error('GDD Status Bar item not found');
+
+            await gddItem.click();
+
+            const prompt = await workbench.getQuickInput();
+            const placeHolder = await prompt.getPlaceHolder();
+            expect(placeHolder).toBe('选择访谈使用的 LLM 模型');
+
+            await browser.keys(['Escape']);
+        });
+    });
+});

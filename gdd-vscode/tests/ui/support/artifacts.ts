@@ -197,3 +197,44 @@ export async function captureFailureArtifacts(error?: unknown): Promise<void> {
 
   await captureScreenshot('failure');
 }
+
+export function copyExtensionHostLogs(): void {
+  const context = getRunContext();
+  
+  // Find all exthost.log files in storageDir
+  const candidates: string[] = [];
+  
+  function scan(dir: string) {
+    try {
+      const files = fs.readdirSync(dir);
+      for (const file of files) {
+        const fullPath = path.join(dir, file);
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+          scan(fullPath);
+        } else if (file === 'exthost.log') {
+          candidates.push(fullPath);
+        }
+      }
+    } catch {
+      // Ignore access errors
+    }
+  }
+  
+  scan(context.storageDir);
+  
+  if (candidates.length === 0) {
+    return;
+  }
+  
+  // Sort by mtime desc
+  candidates.sort((a, b) => fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime());
+  
+  const bestLog = candidates[0];
+  try {
+    fs.copyFileSync(bestLog, path.join(context.logsDir, 'extension-host.log'));
+  } catch (err) {
+    console.error('Failed to copy exthost log:', err);
+  }
+}
+

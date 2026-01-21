@@ -8,11 +8,29 @@ interface ModelPickItem extends vscode.QuickPickItem {
   model: ModelChoice;
 }
 
+const LLM_SELECTION_GLOBAL_KEY = 'gdd.llm.selection';
+
+export async function getGlobalLlmSelection(
+  context: vscode.ExtensionContext
+): Promise<LlmSelection | undefined> {
+  return context.globalState.get<LlmSelection>(LLM_SELECTION_GLOBAL_KEY);
+}
+
+export async function setGlobalLlmSelection(
+  context: vscode.ExtensionContext,
+  selection: LlmSelection
+): Promise<void> {
+  await context.globalState.update(LLM_SELECTION_GLOBAL_KEY, selection);
+}
+
 export async function resolveLlmSelection(
   context: vscode.ExtensionContext,
-  session: Session
+  session?: Session
 ): Promise<LlmSelection> {
-  const existing = session.getState().llmSelection;
+  const existing = session
+    ? session.getState().llmSelection
+    : await getGlobalLlmSelection(context);
+
   if (existing?.providerId && existing?.modelId) {
     await ensureProviderCredentials(context, existing.providerId);
     return existing;
@@ -52,7 +70,11 @@ export async function resolveLlmSelection(
   };
 
   await ensureProviderCredentials(context, chosen.providerId);
-  await session.setLlmSelection(chosen);
+
+  if (session) {
+    await session.setLlmSelection(chosen);
+  }
+  await setGlobalLlmSelection(context, chosen);
 
   return chosen;
 }

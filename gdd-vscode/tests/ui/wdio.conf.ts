@@ -1,6 +1,6 @@
 import path from 'path';
 import type { Options } from '@wdio/types';
-import { initRunContext, captureFailureArtifacts } from './support/artifacts';
+import { initRunContext, captureFailureArtifacts, copyExtensionHostLogs } from './support/artifacts';
 
 const rootDir = path.resolve(__dirname, '..', '..');
 const runContext = initRunContext(rootDir);
@@ -10,7 +10,10 @@ const logLevel = (process.env.WDIO_LOG_LEVEL ?? 'info') as Options.Testrunner['l
 
 export const config: Options.Testrunner = {
   runner: 'local',
-  specs: [path.join(__dirname, 'specs', 'ui.e2e.ts')],
+  specs: [
+    path.join(__dirname, 'specs', 'ui.e2e.ts')
+  ],
+
   maxInstances: 1,
   maxInstancesPerCapability: 1,
   logLevel,
@@ -72,5 +75,8 @@ export const config: Options.Testrunner = {
     if (!result.passed) {
       await captureFailureArtifacts(result.error);
     }
+  },
+  after: async () => {
+    copyExtensionHostLogs();
   }
 };

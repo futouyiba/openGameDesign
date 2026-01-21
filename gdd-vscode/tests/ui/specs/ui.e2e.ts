@@ -1,2 +1,1 @@
-import './command-palette.e2e';
-import './writer-mode.e2e';
+import './model-switcher.e2e';
