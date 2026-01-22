@@ -3,7 +3,7 @@
   "lsp": {
     "typescript": {
       "command": [
-        "e:\\claudeCode\\typescript-language-server.cmd",
+        "C:\\Users\\futou\\AppData\\Roaming\\npm\\typescript-language-server",
         "--stdio"
       ]
     }

@@ -71,7 +71,11 @@ export class AIClient {
     systemPrompt: string | undefined,
     baseUrl?: string
   ): Promise<string> {
-    const apiKey = await ensureApiKey(this.context, selection.providerId, '请输入 OpenCode Zen API Key (https://opencode.ai/auth)');
+    const provider = getProviderDefinition(selection.providerId);
+    const prompt = provider.id.startsWith('opencode-zen')
+      ? '请输入 OpenCode Zen API Key (https://opencode.ai/auth)'
+      : `请输入 ${provider.label} API Key`;
+    const apiKey = await ensureApiKey(this.context, selection.providerId, prompt);
 
     if (!this.anthropicClient) {
       this.anthropicClient = new Anthropic({

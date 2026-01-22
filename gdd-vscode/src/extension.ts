@@ -79,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const selection = await resolveLlmSelection(context, session);
             if (!selection) return;
             await updateStatusBar(context);
-            InterviewPanel.render(context);
+            InterviewPanel.render(context, session, selection);
             return;
         }
 
@@ -100,7 +100,7 @@ export async function activate(context: vscode.ExtensionContext) {
         if (!selection) return;
         await updateStatusBar(context);
         progressProvider.updatePhase('interview', 'in_progress');
-        InterviewPanel.render(context);
+        InterviewPanel.render(context, session, selection);
     });
 
     const startWritingCommand = vscode.commands.registerCommand('gdd.startWriting', async () => {

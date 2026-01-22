@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Session } from '../core/session';
 import { AIClient } from '../utils/ai';
-import { getDefaultSelection, resolveLlmSelection } from '../llm/selection';
+import { LlmSelection } from '../llm/types';
 import OpenAI from 'openai';
 import { InterviewerAgent } from '../agents/interviewer';
 
@@ -15,14 +15,18 @@ export class InterviewPanel {
     private conversationHistory: Array<{ role: 'ai' | 'user'; content: string }> = [];
     private context: vscode.ExtensionContext;
 
-    private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
+    private constructor(
+        panel: vscode.WebviewPanel,
+        context: vscode.ExtensionContext,
+        session: Session,
+        selection: LlmSelection
+    ) {
         this._panel = panel;
         this.context = context;
 
-        // 初始化Session和AI
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
-        this.session = new Session(workspaceRoot);
-        this.ai = new AIClient(context, getDefaultSelection());
+        // 使用外部传入的 Session 和 Selection
+        this.session = session;
+        this.ai = new AIClient(context, selection);
         this.interviewer = new InterviewerAgent(this.session, this.ai);
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -32,11 +36,7 @@ export class InterviewPanel {
             async message => {
                 switch (message.command) {
                     case 'init':
-                        await this.session.init();
-                        const selection = await resolveLlmSelection(this.context, this.session);
-                        if (selection) {
-                            this.ai.updateSelection(selection);
-                        }
+                        // Session 已由外部初始化，直接开始访谈
                         await this.initializeInterview();
                         return;
                     case 'answer':
@@ -192,7 +192,11 @@ export class InterviewPanel {
         }
     }
 
-    public static render(context: vscode.ExtensionContext) {
+    public static render(
+        context: vscode.ExtensionContext,
+        session: Session,
+        selection: LlmSelection
+    ) {
         if (InterviewPanel.currentPanel) {
             InterviewPanel.currentPanel._panel.reveal(vscode.ViewColumn.One);
             return;
@@ -208,7 +212,7 @@ export class InterviewPanel {
             }
         );
 
-        InterviewPanel.currentPanel = new InterviewPanel(panel, context);
+        InterviewPanel.currentPanel = new InterviewPanel(panel, context, session, selection);
     }
 
     public dispose() {

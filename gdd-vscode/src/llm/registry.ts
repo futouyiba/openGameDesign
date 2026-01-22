@@ -56,10 +56,25 @@ export const PROVIDERS: Record<string, ProviderDefinition> = {
     transport: 'openai-compatible',
     auth: 'apiKey',
     baseUrl: 'https://api.minimax.io/v1'
+  },
+  'anthropic-direct': {
+    id: 'anthropic-direct',
+    label: 'Anthropic (Claude)',
+    transport: 'anthropic',
+    auth: 'apiKey'
   }
 };
 
 export const MODEL_CHOICES: ModelChoice[] = [
+  {
+    id: 'anthropic-claude-3-5-sonnet',
+    label: 'Anthropic / Claude 3.5 Sonnet',
+    description: 'claude-3-5-sonnet-20241022',
+    detail: 'Direct API',
+    providerId: 'anthropic-direct',
+    modelId: 'claude-3-5-sonnet-20241022',
+    default: true
+  },
   {
     id: 'opencode-zen-glm-4.7-free',
     label: 'OpenCode Zen / GLM 4.7 (Free)',

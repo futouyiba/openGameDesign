@@ -118,6 +118,37 @@ suite('Workflow Integration', () => {
 
     const underwaterPath = path.join(workspaceRoot, 'docs', 'game-design-document.underwater.md');
     assert.ok(fs.existsSync(underwaterPath), 'Underwater doc should be generated');
+
+    const underwaterContent = fs.readFileSync(underwaterPath, 'utf-8');
+    assert.ok(
+      underwaterContent.includes('# Underwater Doc'),
+      'Underwater doc should include header'
+    );
+  });
+
+  test('Session persists state and conversation history', async () => {
+    const session = new Session(workspaceRoot);
+    await session.init();
+
+    await session.setPhase('writing');
+    await session.setLlmSelection({ providerId: 'test', modelId: 'mock-model' });
+    await session.addConversationMessage({ role: 'user', content: 'Hello' });
+    await session.addConversationMessage({ role: 'ai', content: 'World' });
+
+    const configPath = path.join(workspaceRoot, '.gdd', 'config.json');
+    assert.ok(fs.existsSync(configPath), 'Config file should be written');
+
+    const persisted = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    assert.strictEqual(persisted.phase, 'writing');
+    assert.deepStrictEqual(persisted.llmSelection, { providerId: 'test', modelId: 'mock-model' });
+    assert.ok(Array.isArray(persisted.conversationHistory));
+    assert.strictEqual(persisted.conversationHistory.length, 2);
+
+    const reloaded = new Session(workspaceRoot);
+    await reloaded.init();
+    assert.strictEqual(reloaded.getState().phase, 'writing');
+    assert.deepStrictEqual(reloaded.getState().llmSelection, { providerId: 'test', modelId: 'mock-model' });
+    assert.strictEqual(reloaded.getConversationHistory().length, 2);
   });
 
   test('Mail system supports bidirectional flow', async () => {
@@ -150,6 +181,30 @@ suite('Workflow Integration', () => {
     assert.strictEqual(processed.length, 1);
   });
 
+  test('Mail system supports draft lifecycle and priority filters', async () => {
+    const mailSystem = new MailSystem(workspaceRoot);
+    await mailSystem.init();
+
+    const draft = await mailSystem.createDraft({
+      type: 'command',
+      priority: 'urgent',
+      from: 'user',
+      content: 'draft mail'
+    });
+    assert.strictEqual(draft.status, 'draft');
+
+    await mailSystem.sendDraft(draft.id);
+    const sent = mailSystem.getMailsByStatus('sent');
+    assert.ok(sent.some(m => m.id === draft.id));
+
+    const urgent = mailSystem.getUnprocessedMails(['urgent']);
+    assert.ok(urgent.some(m => m.id === draft.id));
+
+    await mailSystem.markProcessed(draft.id);
+    const urgentAfter = mailSystem.getUnprocessedMails(['urgent']);
+    assert.ok(!urgentAfter.some(m => m.id === draft.id));
+  });
+
   test('Writing and review phases generate documents', async () => {
     const session = new Session(workspaceRoot);
     await session.init();
@@ -172,11 +227,65 @@ suite('Workflow Integration', () => {
     const docPath = path.join(workspaceRoot, 'docs', 'game-design-document.md');
     assert.ok(fs.existsSync(docPath), 'GDD document should exist');
 
+    const gddContent = fs.readFileSync(docPath, 'utf-8');
+    assert.ok(gddContent.includes('# 游戏策划文档'), 'Document should include title');
+    assert.ok(gddContent.includes('## 游戏概述'), 'Document should include outline sections');
+
+    const underwaterPath = path.join(workspaceRoot, 'docs', 'game-design-document.underwater.md');
+    assert.ok(fs.existsSync(underwaterPath), 'Underwater doc should exist after writing');
+    const underwaterContent = fs.readFileSync(underwaterPath, 'utf-8');
+    assert.ok(
+      underwaterContent.includes('## Context & Constraints'),
+      'Underwater doc should include Context section'
+    );
+    assert.ok(
+      underwaterContent.includes('受限于测试环境'),
+      'Underwater doc should include extracted context'
+    );
+    assert.ok(
+      underwaterContent.includes('## Decision Log'),
+      'Underwater doc should include Decision Log section'
+    );
+    assert.ok(
+      underwaterContent.includes('### genre'),
+      'Underwater doc should include decisions from summary'
+    );
+
     const reviewer = new ReviewerAgent(session, new MockAIClient() as any);
     const reviewResult = await reviewer.review(docPath);
     await reviewer.fixIssues(docPath, reviewResult.inline);
 
     const updated = fs.readFileSync(docPath, 'utf-8');
     assert.ok(updated.includes('FIXED CONTENT'), 'Document should include fixed content');
+  });
+
+  test('Comment controller stores comment mail with range metadata', async () => {
+    const { CommentController } = await import('../comments/CommentController');
+
+    const session = new Session(workspaceRoot);
+    await session.init();
+
+    const docsDir = path.join(workspaceRoot, 'docs');
+    fs.mkdirSync(docsDir, { recursive: true });
+
+    const docPath = path.join(docsDir, 'comments.md');
+    fs.writeFileSync(docPath, '# Title\n\nHello world\n', 'utf-8');
+
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(docPath));
+    const controller = new CommentController(session);
+
+    const range = new vscode.Range(new vscode.Position(2, 0), new vscode.Position(2, 5));
+    await controller.addComment(document, range, '这是一条评论');
+    controller.dispose();
+
+    const mailFile = path.join(workspaceRoot, '.gdd', 'mails', 'mails.json');
+    assert.ok(fs.existsSync(mailFile), 'Mail storage should exist');
+    const mails = JSON.parse(fs.readFileSync(mailFile, 'utf-8')) as any[];
+    const commentMail = mails.find(m => m.type === 'comment' && String(m.content).includes('这是一条评论'));
+    assert.ok(commentMail, 'Expected comment mail to be stored');
+    assert.ok(Array.isArray(commentMail.comments) && commentMail.comments.length === 1);
+    assert.strictEqual(commentMail.comments[0].range.startLine, 2);
+    assert.strictEqual(commentMail.comments[0].range.endLine, 2);
+    assert.strictEqual(commentMail.comments[0].range.text, 'Hello');
   });
 });
