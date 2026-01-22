@@ -4,6 +4,7 @@ import { AIClient } from '../utils/ai';
 import { LlmSelection } from '../llm/types';
 import OpenAI from 'openai';
 import { InterviewerAgent } from '../agents/interviewer';
+import { log } from '../utils/logger';
 
 export class InterviewPanel {
     public static currentPanel: InterviewPanel | undefined;
@@ -40,6 +41,7 @@ export class InterviewPanel {
                         await this.initializeInterview();
                         return;
                     case 'answer':
+                        log('Webview sent answer', { text: message.text });
                         await this.handleUserAnswer(message.text);
                         return;
                     case 'transcribe':
@@ -96,7 +98,9 @@ export class InterviewPanel {
 
             const systemPrompt = '你是一位专业的游戏策划访谈专家。通过深入的提问来充分理解用户的游戏设计文档需求。每次只问一个问题。保持简洁直接。使用中文交流。';
 
+            log('Calling AI.chat...', { messages, systemPrompt });
             const response = await this.ai.chat(messages, systemPrompt);
+            log('AI.chat response received', { response });
 
             this.conversationHistory.push({ role: 'ai', content: response });
             await this.session.addConversationMessage({ role: 'ai', content: response });
