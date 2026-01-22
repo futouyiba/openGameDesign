@@ -1,3 +1,9 @@
 [submodule "vscode-ui-test-skill"]
 	path = vscode-ui-test-skill
 	url = https://github.com/futouyiba/vedats.git
+[submodule "lumina-vscode"]
+	path = lumina-vscode
+	url = https://github.com/futouyiba/best-editor-GDD.git
+[submodule "lumina-vscode"]
+	path = lumina-vscode
+	url = https://github.com/futouyiba/best-editor-GDD.git

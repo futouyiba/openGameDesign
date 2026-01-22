@@ -40,9 +40,6 @@ errorImages/
 .gdd/
 **/.gdd/
 
-# Local workspace clones
-lumina-vscode/
-
 # Claude settings
 .claude/
 
