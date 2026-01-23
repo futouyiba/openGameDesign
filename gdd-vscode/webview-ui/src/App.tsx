@@ -12,6 +12,8 @@ interface Message {
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
 
+  const [isFinishing, setIsFinishing] = useState(false);
+
   useEffect(() => {
     // Send init
     vscode.postMessage({ command: 'log', text: 'React Webview Initialized' });
@@ -26,14 +28,10 @@ function App() {
         case 'displayUserMessage':
           setMessages(prev => [...prev, { role: 'user', content: message.text }]);
           break;
+        case 'error':
+          setIsFinishing(false); // Reset loading on error
+          break;
         case 'transcription':
-          // We need to handle transcription update.
-          // Since InputArea controls its own state, we need a way to pass this down?
-          // OR InputArea listens to event?
-          // OR we lift state up?
-          // For now, let's just log it. 
-          // Re-implementing: The original script manipulated DOM directly.
-          // To update InputArea text, we usually lift state.
           break;
       }
     };
@@ -43,29 +41,25 @@ function App() {
   }, []);
 
   const handleSend = (text: string) => {
-    // Optimistic update done via displayUserMessage command from specific component? 
-    // Original script: sendAnswer -> displayUserMessage -> postMessage 'answer'.
-    // Here:
     setMessages(prev => [...prev, { role: 'user', content: text }]); // Optimistic
     vscode.postMessage({ command: 'answer', text });
   };
 
   const handleFinish = () => {
+    setIsFinishing(true);
     vscode.postMessage({ command: 'done' });
   };
 
-  // Transcription handling:
-  // In InputArea, we can listen to global event? Or better, pass a prop 'transcribedText'.
-  // But standard pattern is lift state.
-  // We'll leave InputArea state local for typing, but handle transcription via prop?
-  // Let's modify InputArea later if needed. For now transcription support might be deferred or hacked via EventBus or global.
-  // Actually, let's implement a listener in InputArea for simplicity.
-  // Wait, InputArea in previous step didn't have listener.
-
   return (
     <div className="app">
-      <button className="finish-button" onClick={handleFinish} id="finishButton">
-        完成访谈 / Finish Interview
+      <button
+        className="finish-button"
+        onClick={handleFinish}
+        id="finishButton"
+        disabled={isFinishing}
+        style={{ opacity: isFinishing ? 0.5 : 1, cursor: isFinishing ? 'wait' : 'pointer' }}
+      >
+        {isFinishing ? '生成总结中... / Generating...' : '完成访谈 / Finish Interview'}
       </button>
 
       <ChatLayout messages={messages} />

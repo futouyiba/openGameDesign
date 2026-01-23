@@ -119,7 +119,20 @@ export class InterviewPanel {
                 content: m.content
             }));
 
-            const systemPrompt = '你是一位专业的游戏策划访谈专家。通过深入的提问来充分理解用户的游戏设计文档需求。每次只问一个问题。保持简洁直接。使用中文交流。';
+            const systemPrompt = `你是一位世界级的游戏制作人与策划专家（Game Director）。你的目标是通过访谈，辅助用户完成一份高质量的游戏策划案（GDD）。
+
+<interview_protocol>
+1. **主动引导**: 不要被动等待。如果用户回答简短，请追问细节（例如：“具体的玩法机制想好了吗？”或“美术风格偏向写实还是卡通？”）。
+2. **结构化思维**: 始终关注 GDD 的核心模块：核心玩法 (Core Loop)、世界观 (World Building)、角色 (Characters)、美术与音效 (Art & Audio)。
+3. **确认与复述**: 在转入下一个话题前，简要复述你对当前需求的理解，确保没有误解。
+4. **思维链 (CoT)**: 在回复用户之前，先在内心思考（你可以用 <thinking> 标签包裹你的思考过程，这部分不要展示给用户，或者直接输出最终引导性问题）：
+   - 分析用户当前的回答涉及到哪个 GDD 模块。
+   - 评估该模块的信息完整度 (0-100%)。
+   - 决定是继续深挖当前模块，还是切换到下一个模块。
+5. **风格**: 保持专业、热情、富有创造力。使用中文交流。
+</interview_protocol>
+
+当前阶段：头脑风暴与需求收集。无需生成完整的文档，专注于收集素材。`;
 
             log('Calling AI.chat...', { messages, systemPrompt });
             const response = await this.ai.chat(messages, systemPrompt);
@@ -184,39 +197,49 @@ export class InterviewPanel {
     }
 
     private async finishInterview() {
-        // 生成访谈总结
-        vscode.window.showInformationMessage('正在生成访谈总结...');
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "正在生成访谈总结...",
+            cancellable: false
+        }, async (progress) => {
+            try {
+                const messages = this.conversationHistory.map(m => ({
+                    role: m.role === 'ai' ? 'assistant' as const : 'user' as const,
+                    content: m.content
+                }));
 
-        try {
-            const messages = this.conversationHistory.map(m => ({
-                role: m.role === 'ai' ? 'assistant' as const : 'user' as const,
-                content: m.content
-            }));
-
-            messages.push({
-                role: 'user',
-                content: `基于访谈对话，生成结构化的总结，包括：
+                messages.push({
+                    role: 'user',
+                    content: `基于访谈对话，生成结构化的总结，包括：
 1. understanding: 用户想要创建什么
 2. keyDecisions: 访谈中做出的重要决策（对象格式）
 3. writingDirection: 写作阶段的明确方向
 
 以JSON格式输出，使用中文。`
-            });
+                });
 
-            const summaryResponse = await this.ai.chat(messages, '你是文档摘要专家。');
-            const summary = JSON.parse(summaryResponse.replace(/```json\n?|\n?```/g, ''));
+                progress.report({ message: "AI 正在分析对话..." });
+                const summaryResponse = await this.ai.chat(messages, '你是文档摘要专家。');
 
-            await this.session.setInterviewSummary(summary);
-            await this.session.setPhase('writing');
+                progress.report({ message: "正在保存总结..." });
+                const summary = JSON.parse(summaryResponse.replace(/```json\n?|\n?```/g, ''));
 
-            vscode.window.showInformationMessage('访谈完成！开始写作...');
-            this._panel.dispose();
+                await this.session.setInterviewSummary(summary);
+                await this.session.setPhase('writing');
 
-            // 触发写作阶段
-            vscode.commands.executeCommand('gdd.startWriting');
-        } catch (error) {
-            vscode.window.showErrorMessage(`生成总结失败: ${error}`);
-        }
+                // Notify frontend success/close? The panel is disposed so maybe not needed.
+                // But let's show success message briefly
+                vscode.window.showInformationMessage('访谈完成！开始写作...');
+                this._panel.dispose();
+
+                // 触发写作阶段
+                vscode.commands.executeCommand('gdd.startWriting');
+            } catch (error) {
+                vscode.window.showErrorMessage(`生成总结失败: ${error}`);
+                // Notify frontend to reset loading state?
+                this._panel.webview.postMessage({ command: 'error', text: String(error) });
+            }
+        });
     }
 
     public static render(
