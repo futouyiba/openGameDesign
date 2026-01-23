@@ -10,6 +10,7 @@ import { WriterAgent, setProgressProvider } from './agents/writer';
 import { ReviewerAgent } from './agents/reviewer';
 import { CommentController } from './comments/CommentController';
 import * as path from 'path';
+import { log } from './utils/logger';
 
 let progressProvider: ProgressProvider;
 let mailProvider: MailProvider;
@@ -40,6 +41,7 @@ function isSettingRegistered(config: vscode.WorkspaceConfiguration, key: string)
 }
 
 export async function activate(context: vscode.ExtensionContext) {
+    log('GDD Assistant activating');
     console.log('GDD Assistant is now active');
 
     // 初始化状态栏
@@ -63,44 +65,80 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // 注册命令
     const startCommand = vscode.commands.registerCommand('gdd.start', async () => {
+        log('gdd.start command triggered');
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
         if (!workspaceRoot) {
             vscode.window.showErrorMessage('请先打开一个工作区');
             return;
         }
 
+        log('Workspace root', { workspaceRoot });
         const session = new Session(workspaceRoot);
-        await session.init();
+        try {
+            log('Calling session.init()');
+            await session.init();
+            log('session.init() completed');
+        } catch (error) {
+            log('session.init() failed', { error: String(error) });
+            vscode.window.showErrorMessage(`Session初始化失败: ${error}`);
+            return;
+        }
         const state = session.getState();
+        log('Session state', { phase: state.phase, outputDir: state.outputDir });
 
         // 如果已经在访谈阶段且有未完成的访谈，直接打开访谈面板
         if (state.phase === 'interview') {
+            log('Resuming existing interview');
             progressProvider.updatePhase('interview', 'in_progress');
             const selection = await resolveLlmSelection(context, session);
-            if (!selection) return;
-            await updateStatusBar(context);
-            InterviewPanel.render(context, session, selection);
+            log('LLM selection result (resume)', { selection });
+            if (!selection) {
+                log('User cancelled LLM selection (resume)');
+                return;
+            }
+            try {
+                log('Calling updateStatusBar (resume)');
+                await updateStatusBar(context);
+                log('updateStatusBar completed, calling InterviewPanel.render (resume)');
+                InterviewPanel.render(context, session, selection);
+                log('InterviewPanel.render completed (resume)');
+            } catch (error) {
+                log('Error in resume branch', { error: String(error) });
+                vscode.window.showErrorMessage(`恢复访谈失败: ${error}`);
+            }
             return;
         }
 
         // 选择输出目录
+        log('Showing output directory input');
         const outputDir = await vscode.window.showInputBox({
             prompt: '输入文档输出目录（相对于工作区根目录）',
             value: 'docs',
             placeHolder: 'docs'
         });
 
-        if (!outputDir) return;
+        if (!outputDir) {
+            log('User cancelled output directory input');
+            return;
+        }
+        log('Output directory selected', { outputDir });
 
         // 保存配置
         state.outputDir = outputDir;
         await session.saveState();
 
+        log('Calling resolveLlmSelection');
         const selection = await resolveLlmSelection(context, session);
-        if (!selection) return;
+        log('LLM selection result', { selection });
+        if (!selection) {
+            log('User cancelled LLM selection');
+            return;
+        }
         await updateStatusBar(context);
         progressProvider.updatePhase('interview', 'in_progress');
+        log('Calling InterviewPanel.render', { providerId: selection.providerId, modelId: selection.modelId });
         InterviewPanel.render(context, session, selection);
+        log('InterviewPanel.render completed');
     });
 
     const startWritingCommand = vscode.commands.registerCommand('gdd.startWriting', async () => {

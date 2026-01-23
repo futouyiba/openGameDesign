@@ -5,7 +5,7 @@ import { initRunContext, captureFailureArtifacts, copyExtensionHostLogs } from '
 const rootDir = path.resolve(__dirname, '..', '..');
 const runContext = initRunContext(rootDir);
 
-const vscodeVersion = process.env.VSCODE_UI_VERSION ?? 'stable';
+const vscodeVersion = process.env.VSCODE_UI_VERSION ?? '1.90.0';
 const logLevel = (process.env.WDIO_LOG_LEVEL ?? 'info') as Options.Testrunner['logLevel'];
 
 export const config: Options.Testrunner = {

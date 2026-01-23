@@ -5,6 +5,8 @@ import { LlmSelection } from '../llm/types';
 import OpenAI from 'openai';
 import { InterviewerAgent } from '../agents/interviewer';
 import { log } from '../utils/logger';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export class InterviewPanel {
     public static currentPanel: InterviewPanel | undefined;
@@ -31,35 +33,54 @@ export class InterviewPanel {
         this.interviewer = new InterviewerAgent(this.session, this.ai);
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-        this._panel.webview.html = this._getHtmlContent();
 
+        // 重要：先设置消息监听器，再设置 HTML 内容
+        // 否则 Webview 的 init 消息可能在监听器设置之前就发送了
         this._panel.webview.onDidReceiveMessage(
             async message => {
-                switch (message.command) {
-                    case 'init':
-                        // Session 已由外部初始化，直接开始访谈
-                        await this.initializeInterview();
-                        return;
-                    case 'answer':
-                        log('Webview sent answer', { text: message.text });
-                        await this.handleUserAnswer(message.text);
-                        return;
-                    case 'transcribe':
-                        await this.handleTranscription(message.audio);
-                        return;
-                    case 'done':
-                        await this.finishInterview();
-                        return;
+                log('Received message from webview', { command: message.command });
+                try {
+                    switch (message.command) {
+                        case 'log':
+                            log('Webview log', { text: message.text });
+                            return;
+                        case 'init':
+                            log('Processing init command');
+                            await this.initializeInterview();
+                            log('Init completed');
+                            return;
+                        case 'answer':
+                            log('Webview sent answer', { text: message.text });
+                            await this.handleUserAnswer(message.text);
+                            return;
+                        case 'transcribe':
+                            await this.handleTranscription(message.audio);
+                            return;
+                        case 'done':
+                            await this.finishInterview();
+                            return;
+                    }
+                } catch (error) {
+                    log('Error in message handler', { command: message.command, error: String(error) });
+                    vscode.window.showErrorMessage(`处理消息失败: ${error}`);
                 }
             },
             null,
             this._disposables
         );
+
+        // 设置 HTML 内容（这会触发 Webview 渲染和 init 消息）
+        const html = this._getHtmlContent();
+        log('Setting webview HTML', { length: html.length });
+        this._panel.webview.html = html;
     }
 
     private async initializeInterview() {
+        log('initializeInterview called');
         const state = this.session.getState();
+        log('Session state', { phase: state.phase });
         const history = this.session.getConversationHistory();
+        log('Conversation history length', { length: history.length });
 
         if (history.length > 0) {
             // 恢复之前的对话
@@ -72,10 +93,12 @@ export class InterviewPanel {
             }
         } else {
             // 新访谈，发送初始问候
+            log('Sending initial greeting');
             await this.sendAIMessage('你好！我将帮助你创建游戏策划文档。请告诉我，你想创建什么类型的游戏？');
         }
 
         this.conversationHistory = history;
+        log('initializeInterview completed');
     }
 
     private displayUserMessage(text: string) {
@@ -212,7 +235,10 @@ export class InterviewPanel {
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
-                retainContextWhenHidden: true
+                retainContextWhenHidden: true,
+                localResourceRoots: [
+                    vscode.Uri.file(path.join(context.extensionPath, 'dist', 'webview'))
+                ]
             }
         );
 
@@ -231,354 +257,42 @@ export class InterviewPanel {
     }
 
     private _getHtmlContent(): string {
-        return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GDD 访谈</title>
-    <style>
-        :root {
-            --lumina-bg: #18181B;
-            --lumina-surface: #1C1C1F;
-            --lumina-border: rgba(255, 255, 255, 0.08);
-            --lumina-text-primary: #F4F4F5;
-            --lumina-text-secondary: #A1A1AA;
-            --lumina-accent: #A5F3FC;
-            --lumina-error: #FDA4AF;
+        try {
+            // Load from dist/webview/index.html
+            const distPath = path.join(this.context.extensionPath, 'dist', 'webview');
+            const indexPath = path.join(distPath, 'index.html');
 
-            --font-interface: 'General Sans', system-ui, -apple-system, sans-serif;
-            --font-prose: 'IA Writer Duo', 'Input Sans', 'Menlo', monospace;
-        }
+            log('Loading Webview from', { indexPath });
 
-        body {
-            padding: 40px 20px 140px;
-            font-family: var(--font-interface);
-            background-color: var(--lumina-bg);
-            color: var(--lumina-text-primary);
-            line-height: 1.75;
-            margin: 0;
-        }
-
-        .chat-container {
-            max-width: 720px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 3rem;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .message {
-            animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-            max-width: 100%;
-            position: relative;
-        }
-
-        .ai-message {
-            background: transparent;
-            color: var(--lumina-text-primary);
-            font-size: 1.1rem;
-            letter-spacing: -0.01em;
-        }
-
-        .user-message {
-            background: transparent;
-            border-left: 2px solid var(--lumina-accent);
-            padding-left: 1.5rem;
-            margin-top: 1rem;
-            margin-bottom: 1rem;
-            color: var(--lumina-text-secondary);
-            font-family: var(--font-prose);
-        }
-
-        .user-message strong, .ai-message strong {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-family: var(--font-interface);
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            opacity: 0.5;
-        }
-
-        .ai-message strong {
-            color: var(--lumina-accent);
-        }
-
-        .user-message strong {
-            color: var(--lumina-text-secondary);
-        }
-
-        .input-area {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 40px 20px;
-            background: linear-gradient(to top, var(--lumina-bg) 80%, transparent);
-            display: flex;
-            justify-content: center;
-            z-index: 10;
-        }
-
-        .input-wrapper {
-            max-width: 720px;
-            width: 100%;
-            background: var(--lumina-surface);
-            border: 1px solid var(--lumina-border);
-            border-radius: 12px;
-            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);
-            padding: 16px;
-            display: flex;
-            gap: 16px;
-            align-items: flex-end;
-            transition: border-color 0.2s ease;
-        }
-
-        .input-wrapper:focus-within {
-            border-color: rgba(165, 243, 252, 0.2);
-        }
-
-        textarea {
-            flex: 1;
-            min-height: 24px;
-            max-height: 300px;
-            padding: 4px;
-            background: transparent;
-            color: var(--lumina-text-primary);
-            border: none;
-            resize: none;
-            font-family: var(--font-prose);
-            font-size: 1rem;
-            line-height: 1.6;
-            outline: none;
-        }
-
-        textarea::placeholder {
-            color: var(--lumina-text-secondary);
-            opacity: 0.3;
-        }
-
-        .buttons-area {
-            display: flex;
-            gap: 8px;
-        }
-
-        .mic-button {
-            width: 32px;
-            height: 32px;
-            background: transparent;
-            color: var(--lumina-text-secondary);
-            border: 1px solid transparent;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        }
-
-        .mic-button:hover {
-            background: rgba(255,255,255,0.05);
-            color: var(--lumina-text-primary);
-        }
-
-        .mic-button.recording {
-            color: var(--lumina-error);
-            background: rgba(253, 164, 175, 0.1);
-            animation: pulse 2s infinite;
-        }
-
-        button#sendButton {
-            padding: 8px 20px;
-            background: var(--lumina-text-primary);
-            color: var(--lumina-bg);
-            border: none;
-            border-radius: 6px;
-            font-family: var(--font-interface);
-            font-weight: 500;
-            font-size: 0.9rem;
-            cursor: pointer;
-            height: 36px;
-            transition: opacity 0.2s ease;
-        }
-
-        button#sendButton:hover {
-            opacity: 0.9;
-        }
-
-        button#finishButton {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            background: rgba(255,255,255,0.03);
-            color: var(--lumina-text-secondary);
-            border: 1px solid var(--lumina-border);
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            backdrop-filter: blur(4px);
-        }
-
-        button#finishButton:hover {
-            background: var(--lumina-surface);
-            color: var(--lumina-text-primary);
-            border-color: rgba(255,255,255,0.15);
-        }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(253, 164, 175, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(253, 164, 175, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(253, 164, 175, 0); }
-        }
-    </style>
-</head>
-<body>
-    <button id="finishButton">完成访谈 / Finish Interview</button>
-
-    <div class="chat-container" id="chat"></div>
-
-    <div class="input-area">
-        <div class="input-wrapper">
-            <button class="mic-button" id="micButton" title="语音输入 (Whisper)">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-            </button>
-            <textarea id="answer" placeholder="Type your answer... (Shift+Enter for new line)"></textarea>
-            <div class="buttons-area">
-                <button id="sendButton">Send</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const vscode = acquireVsCodeApi();
-        let mediaRecorder;
-        let audioChunks = [];
-
-        window.addEventListener('message', event => {
-            const message = event.data;
-            switch (message.command) {
-                case 'aiMessage':
-                    addAIMessage(message.text);
-                    break;
-                case 'displayUserMessage':
-                    displayUserMessage(message.text);
-                    break;
-                case 'transcription':
-                    const textarea = document.getElementById('answer');
-                    textarea.value += message.text;
-                    textarea.scrollTop = textarea.scrollHeight; // Auto-scroll to bottom
-                    break;
+            if (!fs.existsSync(indexPath)) {
+                log('Error: Webview index.html not found', { indexPath });
+                return `<!DOCTYPE html><html><body>Error: Webview build not found at ${indexPath}. Please run 'npm run ui:build'.</body></html>`;
             }
-        });
 
-        function addAIMessage(text) {
-            const chat = document.getElementById('chat');
-            const aiMsg = document.createElement('div');
-            aiMsg.className = 'message ai-message';
-            aiMsg.innerHTML = '<strong>AI</strong>' + text; // Removed "AI:" prefix for cleaner look
-            chat.appendChild(aiMsg);
-            setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100);
+            let html = fs.readFileSync(indexPath, 'utf-8');
+
+            const assetsPath = vscode.Uri.file(path.join(distPath, 'assets'));
+            const assetsUri = this._panel.webview.asWebviewUri(assetsPath);
+
+            // Replace /assets/ with vscode-resource URI (Vite output uses absolute path /assets/...)
+            html = html.replace(/\/assets\//g, `${assetsUri}/`);
+
+            // Inject CSP
+            const cspSource = this._panel.webview.cspSource;
+            // Allow scripts from vscode-resource and safe inline (for React hydration or fast refresh if dev)
+            // Stricter: script-src ${cspSource} 'nonce-...' but Vite doesn't output nonce easily.
+            // We use permissive for now but explicit.
+            const csp = `default-src 'none'; connect-src ${cspSource} https:; font-src ${cspSource}; img-src ${cspSource} https: data:; script-src 'unsafe-inline' 'unsafe-eval' ${cspSource}; style-src 'unsafe-inline' ${cspSource};`;
+
+            html = html.replace(
+                '<head>',
+                `<head>\n<meta http-equiv="Content-Security-Policy" content="${csp}">`
+            );
+
+            return html;
+        } catch (e) {
+            log('Error loading webview html', { error: String(e) });
+            return `<!DOCTYPE html><html><body>Error loading Webview: ${e}</body></html>`;
         }
-
-        function displayUserMessage(text) {
-            const chat = document.getElementById('chat');
-            const userMsg = document.createElement('div');
-            userMsg.className = 'message user-message';
-            userMsg.innerHTML = '<strong>You</strong>' + text.replace(/\n/g, '<br>');
-            chat.appendChild(userMsg);
-            setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100);
-        }
-
-        function sendAnswer() {
-            const input = document.getElementById('answer');
-            const text = input.value.trim();
-            if (!text) return;
-
-            displayUserMessage(text); // Optimistic UI update
-
-            vscode.postMessage({
-                command: 'answer',
-                text: text
-            });
-
-            input.value = '';
-            // Reset height
-            input.style.height = 'auto'; 
-        }
-
-        // Auto-resize textarea
-        const textarea = document.getElementById('answer');
-        textarea.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-        });
-
-        async function toggleRecording() {
-            const micButton = document.getElementById('micButton');
-
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-                micButton.classList.remove('recording');
-            } else {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
-
-                    mediaRecorder.ondataavailable = (event) => {
-                        audioChunks.push(event.data);
-                    };
-
-                    mediaRecorder.onstop = async () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            vscode.postMessage({
-                                command: 'transcribe',
-                                audio: reader.result
-                            });
-                        };
-                        reader.readAsDataURL(audioBlob);
-                        stream.getTracks().forEach(track => track.stop());
-                    };
-
-                    mediaRecorder.start();
-                    micButton.classList.add('recording');
-                } catch (err) {
-                    alert('Microphone access denied: ' + err.message);
-                }
-            }
-        }
-
-        function finishInterview() {
-            vscode.postMessage({
-                command: 'done'
-            });
-        }
-
-        document.getElementById('answer').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendAnswer();
-            }
-        });
-
-        document.getElementById('sendButton').addEventListener('click', sendAnswer);
-        document.getElementById('finishButton').addEventListener('click', finishInterview);
-        document.getElementById('micButton').addEventListener('click', toggleRecording);
-
-        // Init
-        vscode.postMessage({ command: 'init' });
-    </script>
-</body>
-</html>`;
     }
 }
