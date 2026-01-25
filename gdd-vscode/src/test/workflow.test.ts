@@ -219,7 +219,7 @@ suite('Workflow Integration', () => {
     await session.saveState();
 
     const writer = new WriterAgent(session, new MockAIClient() as any);
-    await writer.start();
+    await writer.generateDraft();
 
     await session.setPhase('reviewing');
     assert.strictEqual(session.getState().phase, 'reviewing');

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SessionState, InterviewSummary } from './types';
+import { SessionState, InterviewSummary, ConversationBranch } from './types';
 import { MailSystem } from './mail';
 import * as path from 'path';
 
@@ -64,10 +64,20 @@ export class Session {
   }
 
   async addConversationMessage(message: { role: 'ai' | 'user'; content: string }) {
-    if (!this.state.conversationHistory) {
-      this.state.conversationHistory = [];
+    const activeBranchId = this.state.activeBranchId || 'main';
+
+    if (activeBranchId === 'main') {
+      if (!this.state.conversationHistory) {
+        this.state.conversationHistory = [];
+      }
+      this.state.conversationHistory.push(message);
+    } else {
+      if (!this.state.branches) this.state.branches = {};
+      const branch = this.state.branches[activeBranchId];
+      if (branch) {
+        branch.history.push(message);
+      }
     }
-    this.state.conversationHistory.push(message);
     await this.saveState();
   }
 
@@ -77,6 +87,66 @@ export class Session {
   }
 
   getConversationHistory(): Array<{ role: 'ai' | 'user'; content: string }> {
-    return this.state.conversationHistory || [];
+    const activeBranchId = this.state.activeBranchId || 'main';
+    if (activeBranchId === 'main') {
+      return this.state.conversationHistory || [];
+    }
+    return this.state.branches?.[activeBranchId]?.history || [];
+  }
+
+  async createBranch(topic: string): Promise<string> {
+    const branchId = `branch-${Date.now()}`;
+    if (!this.state.branches) this.state.branches = {};
+
+    this.state.branches[branchId] = {
+      id: branchId,
+      topic,
+      history: [],
+      parentId: 'main',
+      createdAt: Date.now()
+    };
+
+    this.state.activeBranchId = branchId;
+    await this.saveState();
+    return branchId;
+  }
+
+  async switchBranch(branchId: string) {
+    if (branchId !== 'main' && (!this.state.branches || !this.state.branches[branchId])) {
+      throw new Error(`Branch ${branchId} not found`);
+    }
+    this.state.activeBranchId = branchId;
+    await this.saveState();
+  }
+
+  async deleteBranch(branchId: string) {
+    if (this.state.branches && this.state.branches[branchId]) {
+      delete this.state.branches[branchId];
+      if (this.state.activeBranchId === branchId) {
+        this.state.activeBranchId = 'main';
+      }
+      await this.saveState();
+    }
+  }
+
+  getActiveBranchId(): string {
+    return this.state.activeBranchId || 'main';
+  }
+
+  getActiveBranchTopic(): string | undefined {
+    const id = this.getActiveBranchId();
+    if (id === 'main') return undefined;
+    return this.state.branches?.[id]?.topic;
+  }
+
+  async getMarkdownDocument(): Promise<vscode.TextDocument> {
+    const outputDir = this.state.outputDir || 'docs';
+    const docPath = path.join(this.workspaceRoot, outputDir, 'game-design-document.md');
+    try {
+      return await vscode.workspace.openTextDocument(docPath);
+    } catch (error) {
+      // If file doesn't exist yet, we might want to create it or throw
+      throw new Error(`Document not found at ${docPath}`);
+    }
   }
 }

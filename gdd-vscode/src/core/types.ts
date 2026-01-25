@@ -40,10 +40,27 @@ export interface InterviewSummary {
   writingDirection: string;
 }
 
+export type DependencyType = 'INHERITANCE' | 'REFERENCE';
+
+export interface Dependency {
+  file: string;
+  type: DependencyType;
+}
+
 export interface DocumentMetadata {
   file: string;
   summary: string;
+  dependencies?: string[]; // Legacy/Implied string paths
+  explicitDependencies?: Dependency[]; // [NEW] Structured explicit dependencies
   lastModified: Date;
+}
+
+export interface ConversationBranch {
+  id: string;
+  topic: string;
+  history: Array<{ role: 'ai' | 'user'; content: string }>;
+  parentId: string;
+  createdAt: number;
 }
 
 export interface SessionState {
@@ -52,8 +69,25 @@ export interface SessionState {
   interviewSummary?: InterviewSummary;
   outputDir?: string;
   conversationHistory?: Array<{ role: 'ai' | 'user'; content: string }>;
+  branches?: Record<string, ConversationBranch>;
+  activeBranchId?: string;
   llmSelection?: {
     providerId: string;
     modelId: string;
   };
+}
+
+export interface ContextStrategy {
+  id: string;
+  name: string;
+  description: string;
+  /**
+   * Given a task description and a list of available documents, return the relevant file paths.
+   */
+  select(task: string, availableDocs: DocumentMetadata[]): Promise<string[]>;
+}
+
+export interface ExtensionState {
+  isWriterMode?: boolean;
+  [key: string]: any;
 }

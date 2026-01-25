@@ -5,6 +5,7 @@ import { ensureApiKey, ensureCodexOAuth } from '../llm/auth';
 import { getProviderDefinition } from '../llm/registry';
 import { ChatMessage, LlmSelection } from '../llm/types';
 import { log } from './logger';
+import { DebugService } from '../core/debugService';
 
 const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 
@@ -91,11 +92,16 @@ export class AIClient {
       messages
     });
 
-    return response.content
+    const responseText = response.content
       .filter(part => part.type === 'text')
       .map(part => part.text)
       .join('')
       .trim();
+
+    DebugService.getInstance().log('llm-req', 'AIClient.Anthropic', 'Request Sent', { model: selection.modelId, messages, system: systemPrompt });
+    DebugService.getInstance().log('llm-res', 'AIClient.Anthropic', 'Response Received', { content: responseText });
+
+    return responseText;
   }
 
   private async callOpenAICompatible(
@@ -131,7 +137,12 @@ export class AIClient {
       max_tokens: DEFAULT_MAX_OUTPUT_TOKENS
     });
 
-    return response.choices?.[0]?.message?.content?.trim() || '';
+    const responseText = response.choices?.[0]?.message?.content?.trim() || '';
+
+    DebugService.getInstance().log('llm-req', 'AIClient.OpenAICompat', 'Request Sent', { model: selection.modelId, messages: openaiMessages });
+    DebugService.getInstance().log('llm-res', 'AIClient.OpenAICompat', 'Response Received', { content: responseText });
+
+    return responseText;
   }
 
   private async callCodex(
@@ -179,7 +190,12 @@ export class AIClient {
 
     const data = await response.json();
     log('Codex API success', { response: data });
-    return extractResponseText(data);
+    const responseText = extractResponseText(data);
+
+    DebugService.getInstance().log('llm-req', 'AIClient.Codex', 'Request Sent', { model: selection.modelId, messages: openaiMessages, endpoint });
+    DebugService.getInstance().log('llm-res', 'AIClient.Codex', 'Response Received', { content: responseText });
+
+    return responseText;
   }
 }
 

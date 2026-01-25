@@ -3,6 +3,7 @@ import './index.css';
 import { vscode } from './utils/vscode';
 import { ChatLayout } from './components/ChatLayout';
 import { InputArea } from './components/InputArea';
+import { ModelStatusBar, type ModelStatus } from './components/ModelStatusBar';
 
 interface Message {
   role: 'ai' | 'user';
@@ -11,6 +12,7 @@ interface Message {
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [llmStatus, setLlmStatus] = useState<ModelStatus>({ connected: false });
 
   const [isFinishing, setIsFinishing] = useState(false);
 
@@ -33,6 +35,12 @@ function App() {
           break;
         case 'transcription':
           break;
+        case 'status':
+          setLlmStatus(message.status);
+          break;
+        case 'history':
+          setMessages(message.messages);
+          break;
       }
     };
 
@@ -41,6 +49,20 @@ function App() {
   }, []);
 
   const handleSend = (text: string) => {
+    if (text.startsWith('/branch ')) {
+      const topic = text.substring(8).trim();
+      vscode.postMessage({ command: 'createBranch', topic });
+      return;
+    }
+    if (text === '/merge') {
+      vscode.postMessage({ command: 'mergeBranch' });
+      return;
+    }
+    if (text === '/main') {
+      vscode.postMessage({ command: 'switchBranch', branchId: 'main' });
+      return;
+    }
+
     setMessages(prev => [...prev, { role: 'user', content: text }]); // Optimistic
     vscode.postMessage({ command: 'answer', text });
   };
@@ -62,8 +84,9 @@ function App() {
         {isFinishing ? '生成总结中... / Generating...' : '完成访谈 / Finish Interview'}
       </button>
 
+      <ModelStatusBar status={llmStatus} />
       <ChatLayout messages={messages} />
-      <InputArea onSend={handleSend} />
+      <InputArea onSend={handleSend} disabled={!llmStatus.connected} />
     </div>
   );
 }

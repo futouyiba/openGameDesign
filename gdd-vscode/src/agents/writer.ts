@@ -32,14 +32,14 @@ export class WriterAgent {
     this.underwater = new UnderwaterDocManager(this.outputPath);
   }
 
-  async start(): Promise<void> {
+  async generateDraft(progress?: vscode.Progress<{ message?: string; increment?: number }>): Promise<void> {
     const state = this.session.getState();
     if (!state.interviewSummary) {
       vscode.window.showErrorMessage('未找到访谈总结');
       return;
     }
 
-    vscode.window.showInformationMessage('开始生成文档大纲...');
+    progress?.report({ message: '开始生成文档大纲...' });
     await this.generateOutline();
 
     // 更新 Progress 显示章节
@@ -59,7 +59,7 @@ export class WriterAgent {
         globalProgressProvider.updateSections(sections);
       }
 
-      vscode.window.showInformationMessage(`正在撰写: ${this.sections[i].title} (${i + 1}/${this.sections.length})`);
+      progress?.report({ message: `正在撰写: ${this.sections[i].title} (${i + 1}/${this.sections.length})` });
       await this.writeSection(i);
       await this.saveDocument();
     }
@@ -76,7 +76,7 @@ export class WriterAgent {
     await this.generateUnderwaterDoc();
     await this.underwater.save();
 
-    vscode.window.showInformationMessage('文档撰写完成！水下文档已生成。');
+    progress?.report({ message: '文档撰写完成！水下文档已生成。' });
   }
 
   private async generateOutline() {
