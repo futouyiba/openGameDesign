@@ -5,17 +5,20 @@ import { AIClient } from '../utils/ai';
 import { DocumentMetadata } from './types';
 import { glob } from 'glob';
 import { DebugService } from './debugService';
+import { DependencyAnalyzer } from './dependencyAnalyzer';
 
 export class ContextManager {
     private static instance: ContextManager;
     private index: DocumentMetadata[] = [];
-    private globalGraph: Map<string, Set<string>> = new Map(); // [NEW] Stores A -> B relationships defined globally
+    private globalGraph: Map<string, Set<string>> = new Map(); // Stores A -> B relationships defined globally
     private ai: AIClient;
     private rootDir: string;
+    private analyzer: DependencyAnalyzer;
 
     private constructor(context: vscode.ExtensionContext, aiClient: AIClient) {
         this.ai = aiClient;
         this.rootDir = context.extensionUri.fsPath;
+        this.analyzer = new DependencyAnalyzer(aiClient);
     }
 
     public static getInstance(context: vscode.ExtensionContext, aiClient: AIClient): ContextManager {
@@ -30,6 +33,31 @@ export class ContextManager {
     }
 
     /**
+     * Trigger explicit analysis for a specific document
+     */
+    public async analyzeDocument(relativeFilePath: string): Promise<void> {
+        const doc = this.findDocMetadata(relativeFilePath);
+        if (!doc) {
+            console.warn(`Cannot analyze ${relativeFilePath}: not in index`);
+            return;
+        }
+
+        DebugService.getInstance().log('info', 'ContextManager', 'Analysis Started', { file: relativeFilePath });
+
+        try {
+            const autoDeps = await this.analyzer.analyze(doc, this.index);
+            doc.autoDependencies = autoDeps;
+
+            DebugService.getInstance().log('info', 'ContextManager', 'Analysis Completed', {
+                file: relativeFilePath,
+                found: autoDeps.length
+            });
+        } catch (e) {
+            console.error('Analysis failed', e);
+        }
+    }
+
+    /**
      * Scan workspace for .md/.gdd files and build/update index
      */
     public async refreshIndex(): Promise<void> {
@@ -41,7 +69,7 @@ export class ContextManager {
             });
 
             const newIndex: DocumentMetadata[] = [];
-            this.globalGraph.clear(); // [NEW] Reset global graph
+            this.globalGraph.clear(); // Reset global graph
 
             for (const file of files) {
                 const fullPath = path.join(this.rootDir, file);
@@ -53,7 +81,7 @@ export class ContextManager {
                     const dependencies = this.extractDependencies(content, file);
                     const explicitDependencies = this.extractExplicitDependencies(content);
 
-                    // [NEW] Extract Mermaid graph edges
+                    // Extract Mermaid graph edges
                     const edges = this.extractGraphEdges(content);
                     edges.forEach(([source, target]) => {
                         if (!this.globalGraph.has(source)) {
@@ -66,7 +94,7 @@ export class ContextManager {
                         file: file, // Relative path
                         summary: summary,
                         dependencies: dependencies,
-                        explicitDependencies: explicitDependencies, // [NEW]
+                        explicitDependencies: explicitDependencies,
                         lastModified: stats.mtime
                     });
                 } catch (e) {
@@ -113,7 +141,7 @@ export class ContextManager {
         return Array.from(dependencies);
     }
 
-    // [NEW] Extract A --> B from Mermaid blocks
+    // Extract A --> B from Mermaid blocks
     private extractGraphEdges(content: string): [string, string][] {
         const edges: [string, string][] = [];
         // Match mermaid blocks
@@ -209,7 +237,7 @@ Return strictly a JSON array of file paths (strings). If no documents are releva
                 }
             }
 
-            // 2. [NEW] Resolve Global Graph dependencies
+            // 2. Resolve Global Graph dependencies
             const basename = path.basename(current, path.extname(current));
 
             if (this.globalGraph.has(current)) {
@@ -223,13 +251,23 @@ Return strictly a JSON array of file paths (strings). If no documents are releva
                 }
             }
 
-            // 3. [NEW] Resolve Explicit Dependencies (Inheritance & Reference)
-            if (doc && doc.explicitDependencies) {
-                for (const dep of doc.explicitDependencies) {
-                    const reason = dep.type === 'INHERITANCE' ?
-                        `Inherits from ${doc.file}` : `Referenced by ${doc.file}`;
-                    // For INHERITANCE, we might want to ensure it's loaded with higher priority in future
-                    this.tryAddDependency(dep.file, resolved, queue, reason);
+            // 3. Resolve Explicit Dependencies (Inheritance & Reference)
+            if (doc) {
+                // Manual
+                if (doc.explicitDependencies) {
+                    for (const dep of doc.explicitDependencies) {
+                        const reason = dep.type === 'INHERITANCE' ?
+                            `Inherits from ${doc.file} (Manual)` : `Referenced by ${doc.file} (Manual)`;
+                        this.tryAddDependency(dep.file, resolved, queue, reason);
+                    }
+                }
+                // Auto
+                if (doc.autoDependencies) {
+                    for (const dep of doc.autoDependencies) {
+                        const reason = dep.type === 'INHERITANCE' ?
+                            `Inherits from ${doc.file} (AI)` : `Referenced by ${doc.file} (AI)`;
+                        this.tryAddDependency(dep.file, resolved, queue, reason);
+                    }
                 }
             }
         }

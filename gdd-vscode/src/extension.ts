@@ -6,6 +6,9 @@ import { resolveLlmSelection, getGlobalLlmSelection } from './llm/selection';
 import { setProgressProvider } from './agents/writer';
 import { CommentController } from './comments/CommentController';
 import { log } from './utils/logger';
+import { AIClient } from './utils/ai';
+import { ContextManager } from './core/contextManager';
+import * as path from 'path';
 
 // Commands
 import { startInterviewCommand } from './commands/startInterview';
@@ -115,6 +118,31 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('gdd.showDebugPanel', () => {
             DebugPanel.createOrShow(context.extensionUri);
+        })
+    );
+
+    // [NEW] Intelligent Auto-Analysis on Save
+    context.subscriptions.push(
+        vscode.workspace.onDidSaveTextDocument(async (document) => {
+            if ((document.languageId === 'markdown' || document.fileName.endsWith('.gdd')) &&
+                !document.fileName.includes('node_modules')) {
+
+                const selection = await getGlobalLlmSelection(context);
+                if (selection) {
+                    const ai = new AIClient(context, selection);
+                    const cm = ContextManager.getInstance(context, ai);
+
+                    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+                    if (workspaceFolder) {
+                        // Ensure CM root is set (it might need init if extension just activated)
+                        cm.updateWorkspaceRoot(workspaceFolder.uri.fsPath);
+
+                        const relativePath = path.relative(workspaceFolder.uri.fsPath, document.fileName);
+                        // Fire and forget analysis
+                        cm.analyzeDocument(relativePath).catch(err => console.error('Auto-analysis failed:', err));
+                    }
+                }
+            }
         })
     );
 

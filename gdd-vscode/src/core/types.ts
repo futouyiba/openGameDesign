@@ -51,7 +51,8 @@ export interface DocumentMetadata {
   file: string;
   summary: string;
   dependencies?: string[]; // Legacy/Implied string paths
-  explicitDependencies?: Dependency[]; // [NEW] Structured explicit dependencies
+  explicitDependencies?: Dependency[]; // [NEW] Structured explicit dependencies (Manual)
+  autoDependencies?: Dependency[]; // [NEW] AI-inferred dependencies
   lastModified: Date;
 }
 
