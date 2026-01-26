@@ -6,6 +6,7 @@ import { DocumentMetadata } from './types';
 import { glob } from 'glob';
 import { DebugService } from './debugService';
 import { DependencyAnalyzer } from './dependencyAnalyzer';
+import MiniSearch from 'minisearch';
 
 export class ContextManager {
     private static instance: ContextManager;
@@ -14,11 +15,23 @@ export class ContextManager {
     private ai: AIClient;
     private rootDir: string;
     private analyzer: DependencyAnalyzer;
+    private searchEngine: MiniSearch;
 
     private constructor(context: vscode.ExtensionContext, aiClient: AIClient) {
         this.ai = aiClient;
         this.rootDir = context.extensionUri.fsPath;
         this.analyzer = new DependencyAnalyzer(aiClient);
+
+        // Initialize MiniSearch
+        this.searchEngine = new MiniSearch({
+            fields: ['file', 'content', 'summary'],
+            storeFields: ['file', 'summary'],
+            searchOptions: {
+                boost: { file: 2 },
+                prefix: true,
+                fuzzy: 0.2
+            }
+        });
     }
 
     public static getInstance(context: vscode.ExtensionContext, aiClient: AIClient): ContextManager {
@@ -70,6 +83,7 @@ export class ContextManager {
 
             const newIndex: DocumentMetadata[] = [];
             this.globalGraph.clear(); // Reset global graph
+            this.searchEngine.removeAll();
 
             for (const file of files) {
                 const fullPath = path.join(this.rootDir, file);
@@ -80,6 +94,14 @@ export class ContextManager {
                     const summary = this.extractSummary(content);
                     const dependencies = this.extractDependencies(content, file);
                     const explicitDependencies = this.extractExplicitDependencies(content);
+
+                    // Index for BM25
+                    this.searchEngine.add({
+                        id: file,
+                        file: file,
+                        content: content,
+                        summary: summary
+                    });
 
                     // Extract Mermaid graph edges
                     const edges = this.extractGraphEdges(content);
@@ -165,6 +187,113 @@ export class ContextManager {
             }
         }
         return edges;
+    }
+
+    // [NEW] Retrieval-Augmented Generation (RAG) using BM25
+    public retrieveRelevantContext(query: string, limit: number = 3, threshold: number = 5): DocumentMetadata[] {
+        if (!query.trim()) return [];
+
+        const results = this.searchEngine.search(query, {
+            filter: (result) => result.score > threshold
+        });
+
+        DebugService.getInstance().log('info', 'ContextManager', 'BM25 Search', {
+            query,
+            results: results.slice(0, limit).map(r => `${r.id} (${r.score})`)
+        });
+
+        return results
+            .slice(0, limit)
+            .map(r => this.findDocMetadata(r.id))
+            .filter((d): d is DocumentMetadata => !!d);
+    }
+
+    // [NEW] Gradient Memory: Rank-based Token Budgeting
+    public async retrieveGradientContext(query: string, tokenBudget: number = 1000): Promise<{ file: string, content: string }[]> {
+        if (!query.trim()) return [];
+
+        const charBudget = tokenBudget * 3; // Approx 3 chars per token
+        // Use a lower threshold to gather enough candidates before filtering by budget
+        const results = this.searchEngine.search(query, {
+            filter: (result) => result.score > 2
+        });
+
+        const context: { file: string, content: string }[] = [];
+        let usedChars = 0;
+
+        for (let i = 0; i < results.length; i++) {
+            if (usedChars >= charBudget) break;
+
+            const res = results[i];
+            const doc = this.findDocMetadata(res.id);
+            if (!doc) continue;
+
+            // Allocation Strategy (Explicit)
+            let allowedChars = 0;
+            let type = 'snippet';
+
+            if (i === 0) {
+                // Rank 1: High focus (~30%)
+                allowedChars = Math.floor(charBudget * 0.30);
+                type = 'focus';
+            } else if (i === 1) {
+                // Rank 2: Medium focus (~15%)
+                allowedChars = Math.floor(charBudget * 0.15);
+                type = 'secondary';
+            } else if (i === 2) {
+                // Rank 3: Low focus (~10%)
+                allowedChars = Math.floor(charBudget * 0.10);
+                type = 'tertiary';
+            } else {
+                // Rank N: Peripheral memory (~100 chars / ~30 tokens)
+                allowedChars = 100;
+                type = 'peripheral';
+            }
+
+            // Cap allowedChars by remaining total budget
+            if (usedChars + allowedChars > charBudget) {
+                allowedChars = charBudget - usedChars;
+            }
+
+            if (allowedChars < 50) break; // Drop if budget is too fragmented
+
+            let content = "";
+
+            // For Focus items, we try to fetch actual content. 
+            // For Peripheral, summary is usually enough.
+            if (type === 'focus' || type === 'secondary') {
+                try {
+                    const fullPath = path.join(this.rootDir, doc.file);
+                    const fileContent = await fs.readFile(fullPath, 'utf-8');
+                    // In a perfect world, we extract the "matching paragraph" using MiniSearch's match positions.
+                    // For now, we take Introduction + Summary + start of body.
+                    // We simulate "smart truncation" by taking the allowed length.
+                    content = `[Focus: ${type}]\nMetadata: ${doc.summary}\nContent: ${fileContent.slice(0, allowedChars)}`;
+                } catch (e) {
+                    content = `[Summary Only]: ${doc.summary}`;
+                }
+            } else {
+                // Snippet/Summary Only
+                content = `[Peripheral]: ${doc.summary.slice(0, allowedChars)}`;
+            }
+
+            // Ensure we don't exceed precise allocation in the final string
+            if (content.length > allowedChars) {
+                content = content.slice(0, allowedChars) + "...";
+            }
+
+            context.push({ file: doc.file, content });
+            usedChars += content.length;
+        }
+
+        DebugService.getInstance().log('context', 'ContextManager', 'Gradient Retrieval', {
+            query,
+            docs: context.length,
+            usedChars,
+            budget: charBudget
+        });
+
+        return context;
     }
 
     /**
