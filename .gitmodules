@@ -4,6 +4,4 @@
 [submodule "lumina-vscode"]
 	path = lumina-vscode
 	url = https://github.com/futouyiba/best-editor-GDD.git
-[submodule "lumina-vscode"]
-	path = lumina-vscode
-	url = https://github.com/futouyiba/best-editor-GDD.git
+
